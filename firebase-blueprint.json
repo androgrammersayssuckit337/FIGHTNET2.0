@@ -1,0 +1,105 @@
+{
+  "entities": {
+    "UserPublic": {
+      "title": "User Public Profile",
+      "description": "Publicly accessible profile information for a user.",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["fighter", "fan", "sponsor"] },
+        "profileImageUrl": { "type": "string" },
+        "bio": { "type": "string" },
+        "record": { "type": "string" },
+        "gym": { "type": "string" },
+        "isPro": { "type": "boolean" },
+        "createdAt": { "type": "number", "description": "Timestamp" }
+      },
+      "required": ["displayName", "role", "createdAt"]
+    },
+    "UserPrivate": {
+      "title": "User Private Info",
+      "description": "Sensitive user information.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["email"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "A media post, highlight, or update from a user.",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string" },
+        "content": { "type": "string" },
+        "mediaUrl": { "type": "string" },
+        "mediaType": { "type": "string", "enum": ["video", "image"] },
+        "likesCount": { "type": "number" },
+        "createdAt": { "type": "number", "description": "Timestamp" }
+      },
+      "required": ["authorId", "content", "createdAt"]
+    },
+    "SponsorshipApplication": {
+      "title": "Sponsorship Application",
+      "description": "Application from a fighter to an advocating agent or brand.",
+      "type": "object",
+      "properties": {
+        "fighterId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "pitch": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["fighterId", "status", "pitch", "createdAt"]
+    },
+    "ChatRoom": {
+      "title": "Chat Room",
+      "description": "A conversation between users.",
+      "type": "object",
+      "properties": {
+        "participantIds": { "type": "array", "items": { "type": "string" } },
+        "lastMessage": { "type": "string" },
+        "lastMessageAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["participantIds", "updatedAt"]
+    },
+    "ChatMessage": {
+      "title": "Chat Message",
+      "description": "A message sent within a chat room.",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["senderId", "content", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserPublic" },
+      "description": "Public user profiles"
+    },
+    "/users/{userId}/private/info": {
+      "schema": { "$ref": "#/entities/UserPrivate" },
+      "description": "Private user information (PII)"
+    },
+    "/posts/{postId}": {
+      "schema": { "$ref": "#/entities/Post" },
+      "description": "Feed posts"
+    },
+    "/sponsorships/{applicationId}": {
+      "schema": { "$ref": "#/entities/SponsorshipApplication" },
+      "description": "Sponsorship applications"
+    },
+    "/chatRooms/{roomId}": {
+      "schema": { "$ref": "#/entities/ChatRoom" },
+      "description": "Conversation metadata"
+    },
+    "/chatRooms/{roomId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Individual chat messages"
+    }
+  }
+}

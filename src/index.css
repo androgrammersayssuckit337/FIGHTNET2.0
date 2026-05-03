@@ -1,0 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Grenze+Gotisch:wght@700;900&family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Anton", "Inter", sans-serif;
+  --font-logo: "Grenze Gotisch", serif;
+  
+  --color-brand-red: #E31837;
+  --color-brand-dark: #0a0a0a;
+  --color-brand-gray: #18181b;
+  --color-brand-light: #ffffff;
+  
+  --color-background: var(--color-brand-dark);
+  --color-foreground: var(--color-brand-light);
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.bg-texture {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+

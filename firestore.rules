@@ -1,0 +1,171 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitive Definitions
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { 
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+
+    // Validation Blueprint for UserPublic
+    function isValidUserPublic(data) {
+      return data.keys().hasAll(['displayName', 'role', 'createdAt']) &&
+             data.keys().size() >= 3 && data.keys().size() <= 9 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+             data.role in ['fighter', 'fan', 'sponsor'] &&
+             (data.createdAt is timestamp || data.createdAt == request.time) &&
+             (data.get('profileImageUrl', '') is string && data.get('profileImageUrl', '').size() <= 1024) &&
+             (data.get('bio', '') is string && data.get('bio', '').size() <= 2000) &&
+             (data.get('record', '') is string && data.get('record', '').size() <= 50) &&
+             (data.get('gym', '') is string && data.get('gym', '').size() <= 200) &&
+             (data.get('isPro', false) is bool);
+    }
+
+    // Validation Blueprint for UserPrivate
+    function isValidUserPrivate(data) {
+      return data.keys().hasAll(['email', 'updatedAt']) &&
+             data.keys().size() == 2 &&
+             data.email is string && data.email.size() >= 3 && data.email.size() <= 128 &&
+             (data.updatedAt is timestamp || data.updatedAt == request.time);
+    }
+
+    // Validation Blueprint for Post
+    function isValidPost(data) {
+      return data.keys().hasAll(['authorId', 'content', 'createdAt', 'likesCount', 'status']) &&
+             data.keys().size() >= 5 && data.keys().size() <= 8 &&
+             data.authorId is string && data.authorId == request.auth.uid &&
+             data.content is string && data.content.size() >= 1 && data.content.size() <= 4000 &&
+             (data.createdAt is timestamp || data.createdAt == request.time) &&
+             data.likesCount is number &&
+             data.status == 'published' &&
+             (data.get('mediaUrl', '') is string && data.get('mediaUrl', '').size() <= 1024) &&
+             (data.get('mediaType', '') in ['', 'video', 'image']);
+    }
+
+    // Validation Blueprint for Sponsorship Application
+    function isValidSponsorship(data) {
+      return data.keys().hasAll(['fighterId', 'status', 'pitch', 'createdAt']) &&
+             data.keys().size() == 4 &&
+             data.fighterId is string && data.fighterId == request.auth.uid &&
+             data.status in ['pending', 'approved', 'rejected', 'cancelled'] &&
+             data.pitch is string && data.pitch.size() >= 10 && data.pitch.size() <= 5000 &&
+             (data.createdAt is timestamp || data.createdAt == request.time);
+    }
+
+    // Phase 4: Match Blocks
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId);
+      allow list: if isSignedIn() && (
+        resource.data.role == 'fighter' || resource.data.displayName != null
+      );
+      
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserPublic(incoming()) && 
+                    incoming().createdAt == request.time;
+      
+      allow update: if isOwner(userId) && isValidUserPublic(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'profileImageUrl', 'bio', 'record', 'gym', 'isPro']) &&
+        incoming().role == existing().role &&
+        incoming().createdAt == existing().createdAt
+      );
+
+      match /private/info {
+        allow get: if isOwner(userId);
+        allow write: if isOwner(userId) && isValidUserPrivate(incoming());
+      }
+    }
+
+    match /posts/{postId} {
+      allow get: if isSignedIn() && isValidId(postId);
+      allow list: if isSignedIn() && resource.data.status == 'published';
+      
+      allow create: if isSignedIn() && isValidId(postId) && isValidPost(incoming()) && 
+                    incoming().createdAt == request.time &&
+                    incoming().likesCount == 0;
+      
+      allow update: if isSignedIn() && (
+        // Action: Edit Post
+        (isOwner(existing().authorId) && isValidPost(incoming()) &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['content', 'mediaUrl', 'mediaType', 'status']) &&
+         incoming().likesCount == existing().likesCount &&
+         incoming().authorId == existing().authorId) ||
+        // Action: Like Post (Atomic Increment)
+        (incoming().diff(existing()).affectedKeys().hasOnly(['likesCount']) &&
+         incoming().likesCount == existing().likesCount + 1 &&
+         incoming().content == existing().content &&
+         incoming().authorId == existing().authorId &&
+         incoming().status == existing().status)
+      );
+
+      allow delete: if isOwner(existing().authorId);
+    }
+
+    match /sponsorships/{appId} {
+      allow get: if isSignedIn() && isValidId(appId) && (
+        isOwner(existing().fighterId) || existing().status == 'pending'
+      );
+      allow list: if isSignedIn() && (
+        resource.data.fighterId == request.auth.uid || resource.data.status == 'pending'
+      );
+      
+      allow create: if isSignedIn() && isValidId(appId) && isValidSponsorship(incoming()) && 
+                    incoming().createdAt == request.time &&
+                    incoming().status == 'pending';
+      
+      allow update: if isSignedIn() && (
+        // Action: Cancel/Edit (Fighter)
+        (isOwner(existing().fighterId) && existing().status == 'pending' &&
+         isValidSponsorship(incoming()) &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['pitch', 'status']) &&
+         incoming().status in ['pending', 'cancelled'] &&
+         incoming().fighterId == existing().fighterId)
+      );
+      
+      allow delete: if isOwner(existing().fighterId) && existing().status == 'pending';
+    }
+
+    // Helper for chat participants
+    function isParticipant(participants) {
+      return isSignedIn() && (request.auth.uid in participants);
+    }
+
+    function isValidChatRoom(data) {
+      return data.keys().hasAll(['participantIds', 'updatedAt']) &&
+             data.participantIds is list &&
+             data.participantIds.size() >= 2 &&
+             (data.updatedAt is timestamp || data.updatedAt == request.time);
+    }
+
+    function isValidChatMessage(data) {
+      return data.keys().hasAll(['senderId', 'content', 'createdAt']) &&
+             data.senderId == request.auth.uid &&
+             data.content is string && data.content.size() >= 1 && data.content.size() <= 2000 &&
+             (data.createdAt is timestamp || data.createdAt == request.time);
+    }
+
+    match /chatRooms/{roomId} {
+      allow get: if isParticipant(resource.data.participantIds);
+      allow list: if isSignedIn() && (request.auth.uid in resource.data.participantIds);
+      
+      allow create: if isParticipant(incoming().participantIds) && isValidChatRoom(incoming());
+      
+      allow update: if isParticipant(existing().participantIds) && 
+                    isParticipant(incoming().participantIds) &&
+                    isValidChatRoom(incoming());
+
+      match /messages/{messageId} {
+        allow get, list: if isParticipant(get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participantIds);
+        allow create: if isParticipant(get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participantIds) &&
+                      isValidChatMessage(incoming());
+      }
+    }
+  }
+}
