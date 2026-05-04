@@ -11,6 +11,7 @@ import { GymLocatorPage } from './pages/GymLocatorPage';
 import { StorePage } from './pages/StorePage';
 import { CareerPage } from './pages/CareerPage';
 import { SchedulesPage } from './pages/SchedulesPage';
+import { APIProvider } from '@vis.gl/react-google-maps';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAuth();
@@ -172,17 +173,21 @@ export function AppRoutes() {
     );
   }
 
+  const googleMapsKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
   return (
-    <Routes>
-      <Route path="/" element={!currentUser ? <LandingPage /> : <Navigate to="/app" />} />
-      <Route
-        path="/app/*"
-        element={
-          <ProtectedRoute>
-            <AppLayout />
-          </ProtectedRoute>
-        }
-      />
-    </Routes>
+    <APIProvider apiKey={googleMapsKey || ''}>
+      <Routes>
+        <Route path="/" element={!currentUser ? <LandingPage /> : <Navigate to="/app" />} />
+        <Route
+          path="/app/*"
+          element={
+            <ProtectedRoute>
+              <AppLayout />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </APIProvider>
   );
 }

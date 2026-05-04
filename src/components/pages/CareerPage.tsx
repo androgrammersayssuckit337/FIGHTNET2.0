@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Target, Award, Zap, Edit2, Save, X, Camera, Loader2, Sparkles, Video } from 'lucide-react';
+import { Target, Award, Zap, Edit2, Save, X, Camera, Loader2, Video } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { db, auth, storage } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';

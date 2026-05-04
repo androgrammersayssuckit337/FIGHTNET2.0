@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Logo } from '../Logo';
-import { Shield, Users, Crown, Mail, Lock, User as UserIcon, ArrowRight, Chrome, Video, TrendingUp, Handshake } from 'lucide-react';
+import { Users, Mail, Lock, User as UserIcon, ArrowRight, Chrome, Video, TrendingUp, Handshake } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 type AuthMode = 'landing' | 'login' | 'signup';

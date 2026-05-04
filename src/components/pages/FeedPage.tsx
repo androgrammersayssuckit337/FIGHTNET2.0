@@ -175,6 +175,27 @@ export function FeedPage() {
     }
   };
 
+  const handleShare = async (post: Post) => {
+    const shareData = {
+      title: 'FightNet',
+      text: `Check out this post by ${post.authorName} on FightNet: "${post.content.substring(0, 100)}${post.content.length > 100 ? '...' : ''}"`,
+      url: `${window.location.origin}/app?post=${post.id}`,
+    };
+
+    try {
+      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareData.url);
+        alert('Link copied to clipboard!');
+      }
+    } catch (error) {
+      if ((error as Error).name !== 'AbortError') {
+        console.error('Share failed:', error);
+      }
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden bg-[#0a0a0a]">
       {/* Feed Section */}
@@ -303,7 +324,10 @@ export function FeedPage() {
                      </div>
                    </div>
                  </div>
-                 <button className="text-zinc-800 hover:text-white transition-colors">
+                 <button 
+                   onClick={() => handleShare(post)}
+                   className="text-zinc-800 hover:text-white transition-colors p-1"
+                 >
                    <Share2 className="w-4 h-4" />
                  </button>
               </div>
@@ -360,9 +384,12 @@ export function FeedPage() {
                    <MessageSquare className="w-5 h-5 group-hover/stat:scale-110 transition-transform" />
                    <span className="text-xs font-black tracking-tighter">Comment</span>
                  </button>
-                 <button className="flex items-center gap-2.5 text-zinc-500 hover:text-white transition-all group/stat">
+                 <button 
+                   onClick={() => handleShare(post)}
+                   className="flex items-center gap-2.5 text-zinc-500 hover:text-white transition-all group/stat"
+                 >
                    <Share2 className="w-5 h-5 group-hover/stat:scale-110 transition-transform" />
-                   <span className="text-xs font-black tracking-tighter uppercase tracking-widest text-[10px] ml-1">Send</span>
+                   <span className="text-xs font-black tracking-tighter uppercase tracking-widest text-[10px] ml-1">Share</span>
                  </button>
               </div>
             </div>
