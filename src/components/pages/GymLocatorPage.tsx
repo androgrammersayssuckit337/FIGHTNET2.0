@@ -101,8 +101,8 @@ export function GymLocatorPage() {
               <div className="w-16 h-16 bg-[#E31837]/10 rounded-full flex items-center justify-center mb-4">
                 <MapPin className="w-8 h-8 text-[#E31837]" />
               </div>
-              <h3 className="font-display text-xl uppercase text-white mb-2">Maps Not Configured</h3>
-              <p className="text-zinc-500 text-xs max-w-xs uppercase tracking-widest font-bold">Please add your VITE_GOOGLE_MAPS_API_KEY to the environment settings to enable the live locator.</p>
+              <h3 className="font-display text-xl uppercase text-white mb-2">Maps Connectivity</h3>
+              <p className="text-zinc-500 text-xs max-w-xs uppercase tracking-widest font-bold">Please add your VITE_GOOGLE_MAPS_API_KEY and ensure "Maps JavaScript API" is enabled in your Google Cloud Console.</p>
               <div className="mt-8 grid grid-cols-2 gap-4 w-full max-w-sm opacity-20 pointer-events-none">
                 <div className="h-24 bg-zinc-900 rounded-lg border border-white/5"></div>
                 <div className="h-24 bg-zinc-900 rounded-lg border border-white/5"></div>

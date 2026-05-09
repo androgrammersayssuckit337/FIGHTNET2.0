@@ -311,7 +311,7 @@ export function SchedulesPage() {
                 <MapPin className="w-6 h-6 text-[#E31837]" />
               </div>
               <h3 className="font-display text-lg uppercase text-white mb-2">Event Map Locked</h3>
-              <p className="text-zinc-500 text-[9px] max-w-[180px] uppercase tracking-widest font-bold leading-relaxed">Add VITE_GOOGLE_MAPS_API_KEY to environment to unlock global event tracking.</p>
+              <p className="text-zinc-500 text-[9px] max-w-[180px] uppercase tracking-widest font-bold leading-relaxed">Ensure VITE_GOOGLE_MAPS_API_KEY is set and "Maps JavaScript API" is enabled in Cloud Console.</p>
             </div>
            )}
           

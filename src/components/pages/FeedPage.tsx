@@ -20,7 +20,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { handleFirestoreError, OperationType } from '../../utils/error';
 import { formatDistanceToNow } from 'date-fns';
 import { Heart, MessageSquare, Share2, Trophy, MapPin, ExternalLink, Camera, Shield, Video, BarChart, Filter, ChevronRight, Activity, Zap } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface Post {
   id: string;
@@ -35,6 +35,15 @@ interface Post {
   authorRole?: string;
   authorRecord?: string;
   authorGym?: string;
+}
+
+interface Comment {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorImage: string;
+  content: string;
+  createdAt: number;
 }
 
 interface FighterStats {
@@ -392,6 +401,17 @@ export function FeedPage() {
   };
 
   const [isShareOpen, setIsShareOpen] = useState<string | null>(null);
+  const [openComments, setOpenComments] = useState<Set<string>>(new Set());
+
+  const toggleComments = (postId: string) => {
+    const next = new Set(openComments);
+    if (next.has(postId)) {
+      next.delete(postId);
+    } else {
+      next.add(postId);
+    }
+    setOpenComments(next);
+  };
 
   const handleShare = async (post: Post) => {
     const shareData = {
@@ -482,6 +502,8 @@ export function FeedPage() {
                      />
                   </div>
                </div>
+
+
             </div>
 
             {/* Fighter Matrix Grid */}
@@ -811,10 +833,13 @@ export function FeedPage() {
                    <Heart className={`w-5 h-5 ${post.likesCount > 0 ? 'fill-[#E31837] text-[#E31837]' : ''} group-hover/stat:scale-110 transition-transform`} />
                    <span className="text-xs font-black tracking-tighter uppercase">{post.likesCount || ''} ENFORCEMENTS</span>
                  </button>
-                 <button className="flex items-center gap-2.5 text-zinc-500 hover:text-white transition-all group/stat px-2 py-1 rounded hover:bg-white/5">
-                   <MessageSquare className="w-5 h-5 group-hover/stat:scale-110 transition-transform" />
-                   <span className="text-xs font-black tracking-tighter uppercase">COMMENTS</span>
-                 </button>
+                  <button 
+                    onClick={() => toggleComments(post.id)}
+                    className="flex items-center gap-2.5 text-zinc-500 hover:text-white transition-all group/stat px-2 py-1 rounded hover:bg-white/5"
+                  >
+                    <MessageSquare className="w-5 h-5 group-hover/stat:scale-110 transition-transform" />
+                    <span className="text-xs font-black tracking-tighter uppercase">COMMENTS</span>
+                  </button>
                  <div className="relative">
                     <button 
                       onClick={() => handleShare(post)}
@@ -849,6 +874,19 @@ export function FeedPage() {
                     )}
                  </div>
               </div>
+
+              <AnimatePresence>
+                {openComments.has(post.id) && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <CommentSection postId={post.id} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           ))}
 
@@ -958,6 +996,89 @@ export function FeedPage() {
           </div>
         </div>
       </aside>
+    </div>
+  );
+}
+
+function CommentSection({ postId }: { postId: string }) {
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { userProfile } = useAuth();
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'posts', postId, 'comments'),
+      orderBy('createdAt', 'asc')
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const commentsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toMillis ? doc.data().createdAt.toMillis() : (doc.data().createdAt || Date.now())
+      } as Comment));
+      setComments(commentsData);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, `posts/${postId}/comments`, auth);
+    });
+    return unsubscribe;
+  }, [postId]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim() || !userProfile || !auth.currentUser) return;
+
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, 'posts', postId, 'comments'), {
+        authorId: auth.currentUser.uid,
+        authorName: userProfile.displayName,
+        authorImage: userProfile.profileImageUrl || '',
+        content: newComment,
+        createdAt: serverTimestamp()
+      });
+      setNewComment('');
+    } catch (error) {
+       handleFirestoreError(error, OperationType.CREATE, `posts/${postId}/comments`, auth);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 space-y-4 border-t border-white/5 pt-4 animate-in slide-in-from-top-2 duration-300">
+      <div className="space-y-4 max-h-60 overflow-y-auto pr-2 scrollbar-hide">
+        {comments.map(comment => (
+          <div key={comment.id} className="flex gap-3 items-start group/comment">
+            <img src={comment.authorImage || `https://ui-avatars.com/api/?name=${comment.authorName}&background=000&color=fff`} className="w-8 h-8 rounded-full border border-white/10" alt="" />
+            <div className="flex-1 bg-zinc-900/50 p-3 rounded-2xl border border-white/5">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-[10px] font-black text-white uppercase italic">{comment.authorName}</span>
+                <span className="text-[8px] text-zinc-600 font-bold uppercase">{formatDistanceToNow(comment.createdAt)} ago</span>
+              </div>
+              <p className="text-xs text-zinc-300 leading-relaxed">{comment.content}</p>
+            </div>
+          </div>
+        ))}
+        {comments.length === 0 && (
+          <p className="text-[10px] text-zinc-600 font-black uppercase tracking-widest text-center py-4">No analysis yet. Be the first.</p>
+        )}
+      </div>
+
+      <form onSubmit={handleSubmit} className="flex gap-3 items-center">
+        <input 
+          value={newComment}
+          onChange={(e) => setNewComment(e.target.value)}
+          placeholder="Add your take..."
+          className="flex-1 bg-black border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:border-[#E31837] outline-none"
+        />
+        <button 
+          disabled={!newComment.trim() || isSubmitting}
+          className="bg-[#E31837] text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase italic disabled:opacity-50"
+        >
+          {isSubmitting ? '...' : 'Post'}
+        </button>
+      </form>
     </div>
   );
 }

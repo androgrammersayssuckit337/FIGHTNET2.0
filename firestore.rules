@@ -114,6 +114,12 @@ service cloud.firestore {
       );
 
       allow delete: if isOwner(existing().authorId);
+      
+      match /comments/{commentId} {
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn() && isValidId(commentId) && isValidComment(incoming());
+        allow update, delete: if isOwner(existing().authorId);
+      }
     }
 
     match /sponsorships/{appId} {
@@ -179,6 +185,15 @@ service cloud.firestore {
              (data.get('imageUrl', '') is string && data.get('imageUrl', '').size() <= 2048) &&
              (data.get('tag', '') is string && data.get('tag', '').size() <= 50) &&
              (data.createdAt is timestamp || data.createdAt == request.time);
+    }
+
+    function isValidComment(data) {
+      return data.keys().hasAll(['authorId', 'content', 'createdAt']) &&
+             data.authorId == request.auth.uid &&
+             data.content is string && data.content.size() >= 1 && data.content.size() <= 2000 &&
+             (data.createdAt is timestamp || data.createdAt == request.time) &&
+             (data.get('authorName', '') is string && data.get('authorName', '').size() <= 100) &&
+             (data.get('authorImage', '') is string && data.get('authorImage', '').size() <= 2048);
     }
 
     match /products/{productId} {

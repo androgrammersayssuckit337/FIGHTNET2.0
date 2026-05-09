@@ -1,0 +1,1 @@
+                   <span className="text-xs font-black tracking-tighter uppercase">COMMENTS</span>

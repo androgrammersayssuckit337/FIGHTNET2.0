@@ -87,6 +87,19 @@
       },
       "required": ["senderId", "content", "createdAt"]
     },
+    "Comment": {
+      "title": "Comment",
+      "description": "A comment on a post.",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorImage": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "number", "description": "Timestamp" }
+      },
+      "required": ["authorId", "content", "createdAt"]
+    },
     "FightSchedule": {
       "title": "Fight Schedule",
       "description": "Details of upcoming and live fighting events.",
@@ -150,6 +163,10 @@
     "/posts/{postId}": {
       "schema": { "$ref": "#/entities/Post" },
       "description": "Feed posts"
+    },
+    "/posts/{postId}/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/Comment" },
+      "description": "Comments on posts"
     },
     "/sponsorships/{applicationId}": {
       "schema": { "$ref": "#/entities/SponsorshipApplication" },
