@@ -1,38 +1,104 @@
-import React, { useState, useRef } from 'react';
-import { Target, Award, Zap, Edit2, Save, X, Camera, Video, Shield, Loader2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import React, { useState, useRef, useEffect } from 'react';
+import { Target, Award, Zap, Edit2, Save, X, Camera, Video, Shield, Loader2, ArrowLeft } from 'lucide-react';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { db, auth, storage } from '../../firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { handleFirestoreError, OperationType } from '../../utils/error';
 import { motion, AnimatePresence } from 'motion/react';
 import { PromoGenerator } from '../PromoGenerator';
 
 export function CareerPage() {
-  const { userProfile } = useAuth();
+  const { userProfile: currentUserProfile } = useAuth();
+  const { userId } = useParams<{ userId?: string }>();
+  const navigate = useNavigate();
+  const [profile, setProfile] = useState(currentUserProfile);
+  const [isExternal, setIsExternal] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  
   const [isEditing, setIsEditing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const profileInputRef = useRef<HTMLInputElement>(null);
+  
   const [formData, setFormData] = useState({
-    displayName: userProfile?.displayName || '',
-    bio: userProfile?.bio || '',
-    gym: userProfile?.gym || '',
-    record: userProfile?.record || '',
-    weightClass: userProfile?.weightClass || '',
-    hometown: userProfile?.hometown || '',
-    profileImageUrl: userProfile?.profileImageUrl || '',
-    coverImageUrl: userProfile?.coverImageUrl || '',
-    role: userProfile?.role || 'fan',
+    displayName: '',
+    bio: '',
+    gym: '',
+    record: '',
+    weightClass: '',
+    hometown: '',
+    profileImageUrl: '',
+    coverImageUrl: '',
+    role: 'fan' as 'fighter' | 'fan' | 'sponsor',
     socialLinks: {
-      instagram: userProfile?.socialLinks?.instagram || '',
-      twitter: userProfile?.socialLinks?.twitter || '',
-      youtube: userProfile?.socialLinks?.youtube || '',
+      instagram: '',
+      twitter: '',
+      youtube: '',
     }
   });
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (userId && userId !== auth.currentUser?.uid) {
+        setIsExternal(true);
+        setIsLoading(true);
+        try {
+          const userDoc = await getDoc(doc(db, 'users', userId));
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            setProfile(data as any);
+            setFormData({
+              displayName: data.displayName || '',
+              bio: data.bio || '',
+              gym: data.gym || '',
+              record: data.record || '',
+              weightClass: data.weightClass || '',
+              hometown: data.hometown || '',
+              profileImageUrl: data.profileImageUrl || '',
+              coverImageUrl: data.coverImageUrl || '',
+              role: data.role || 'fan',
+              socialLinks: {
+                instagram: data.socialLinks?.instagram || '',
+                twitter: data.socialLinks?.twitter || '',
+                youtube: data.socialLinks?.youtube || '',
+              }
+            });
+          }
+        } catch (error) {
+          console.error("Error fetching profile:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        setIsExternal(false);
+        setProfile(currentUserProfile);
+        if (currentUserProfile) {
+          setFormData({
+            displayName: currentUserProfile.displayName || '',
+            bio: currentUserProfile.bio || '',
+            gym: currentUserProfile.gym || '',
+            record: currentUserProfile.record || '',
+            weightClass: currentUserProfile.weightClass || '',
+            hometown: currentUserProfile.hometown || '',
+            profileImageUrl: currentUserProfile.profileImageUrl || '',
+            coverImageUrl: currentUserProfile.coverImageUrl || '',
+            role: currentUserProfile.role || 'fan',
+            socialLinks: {
+              instagram: currentUserProfile.socialLinks?.instagram || '',
+              twitter: currentUserProfile.socialLinks?.twitter || '',
+              youtube: currentUserProfile.socialLinks?.youtube || '',
+            }
+          });
+        }
+      }
+    };
+
+    fetchProfile();
+  }, [userId, currentUserProfile]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'profile' | 'cover') => {
     const file = e.target.files?.[0];
@@ -86,7 +152,7 @@ export function CareerPage() {
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth.currentUser) return;
+    if (!auth.currentUser || isExternal) return;
 
     try {
       const userRef = doc(db, 'users', auth.currentUser.uid);
@@ -99,8 +165,28 @@ export function CareerPage() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full bg-[#0a0a0a]">
+        <div className="flex flex-col items-center gap-4">
+          <Zap className="w-8 h-8 text-[#E31837] animate-pulse" />
+          <p className="text-[10px] text-zinc-600 font-black uppercase tracking-[0.4em] italic">Retrieving Intel...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-8 lg:p-12 space-y-12 bg-[#0a0a0a] min-h-full scrollbar-hide max-w-7xl mx-auto pb-24">
+      {isExternal && (
+        <button 
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-zinc-500 hover:text-white transition-colors group mb-4"
+        >
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+          <span className="text-[10px] font-black uppercase tracking-widest">Back to Mission</span>
+        </button>
+      )}
       {/* Dynamic Cover Section */}
       <div className="relative h-64 md:h-80 w-full rounded-3xl overflow-hidden group">
         <img 
@@ -157,18 +243,24 @@ export function CareerPage() {
         <div className="flex items-center gap-4">
            <div className="w-2 h-12 bg-[#E31837] italic shadow-[0_0_20px_rgba(227,24,55,0.4)]"></div>
            <div>
-             <h1 className="text-xl font-display uppercase text-white tracking-tighter italic leading-none mb-1">Career Configuration</h1>
-             <p className="text-zinc-600 uppercase tracking-[0.2em] text-[8px] font-black italic">Advanced Identity Metrics & Agent Visibility</p>
+             <h1 className="text-xl font-display uppercase text-white tracking-tighter italic leading-none mb-1">
+               {isExternal ? 'Combatant Profile' : 'Career Configuration'}
+             </h1>
+             <p className="text-zinc-600 uppercase tracking-[0.2em] text-[8px] font-black italic">
+               {isExternal ? 'Verified Network Identity' : 'Advanced Identity Metrics & Agent Visibility'}
+             </p>
            </div>
         </div>
-        <div className="flex gap-4">
-          <button 
-            onClick={() => setIsEditing(!isEditing)}
-            className={`flex items-center gap-3 px-6 py-2.5 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all ${isEditing ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-white text-black hover:bg-zinc-200 shadow-xl'}`}
-          >
-            {isEditing ? <><X className="w-4 h-4" /> Discard Updates</> : <><Edit2 className="w-4 h-4" /> Refine Persona</>}
-          </button>
-        </div>
+        {!isExternal && (
+          <div className="flex gap-4">
+            <button 
+              onClick={() => setIsEditing(!isEditing)}
+              className={`flex items-center gap-3 px-6 py-2.5 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all ${isEditing ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-white text-black hover:bg-zinc-200 shadow-xl'}`}
+            >
+              {isEditing ? <><X className="w-4 h-4" /> Discard Updates</> : <><Edit2 className="w-4 h-4" /> Refine Persona</>}
+            </button>
+          </div>
+        )}
       </header>
 
       <input type="file" ref={fileInputRef} onChange={(e) => handleFileUpload(e, 'cover')} className="hidden" accept="image/*" />
@@ -334,19 +426,19 @@ export function CareerPage() {
                            <Zap className="w-5 h-5" />
                         </div>
                         <div>
-                           <p className="text-xs font-black text-white uppercase italic">{userProfile?.gym || 'Private Camp'}</p>
+                           <p className="text-xs font-black text-white uppercase italic">{formData.gym || 'Private Camp'}</p>
                            <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest mt-0.5">Primary Training</p>
                         </div>
                      </div>
                   </div>
                </div>
 
-               <div className="lg:col-span-3 space-y-8">
+                <div className="lg:col-span-3 space-y-8">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                      {[
-                       { label: 'RECORD', value: userProfile?.record || '0-0-0', icon: Award },
-                       { label: 'WEIGHT', value: userProfile?.weightClass || 'TBD', icon: Zap },
-                       { label: 'ORIGIN', value: userProfile?.hometown || 'Global', icon: Target },
+                       { label: 'RECORD', value: formData.record || '0-0-0', icon: Award },
+                       { label: 'WEIGHT', value: formData.weightClass || 'TBD', icon: Zap },
+                       { label: 'ORIGIN', value: formData.hometown || 'Global', icon: Target },
                        { label: 'STATUS', value: 'ACTIVE', icon: Shield, color: 'text-green-500' }
                      ].map((stat, i) => (
                        <div key={i} className="bg-zinc-950 border border-white/5 p-4 rounded-2xl group hover:border-[#E31837]/30 transition-colors">
@@ -362,7 +454,7 @@ export function CareerPage() {
                   <div className="bg-zinc-950 border border-white/5 p-8 rounded-3xl space-y-6">
                      <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest border-b border-white/5 pb-4">Career Biography</p>
                      <p className="text-zinc-300 text-lg leading-relaxed font-medium tracking-tight italic">
-                        "{userProfile?.bio || 'No career statement provided. Define your legacy in the refined persona settings.'}"
+                        "{formData.bio || 'No career statement provided. Define your legacy in the refined persona settings.'}"
                      </p>
                   </div>
                   
@@ -374,13 +466,15 @@ export function CareerPage() {
                        <button onClick={() => setShowVideoModal(true)} className="w-full py-4 bg-white text-black font-black uppercase text-[10px] tracking-[0.2em] rounded-xl hover:bg-zinc-200 transition-all relative z-10">Launch Engine</button>
                     </div>
 
-                    <div className="bg-[#0c0c0c] border border-[#E31837]/30 p-8 rounded-3xl relative group">
-                       <Zap className="w-8 h-8 text-[#E31837] mb-4" />
-                       <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-2">Priority Roster</p>
-                       <h3 className="text-xl font-black uppercase italic text-white tracking-tighter mb-2">Upgrade to PRO</h3>
-                       <div className="text-2xl font-black text-white italic mb-6 tracking-tighter">$9.99<span className="text-[10px] text-zinc-600 ml-1">/MO</span></div>
-                       <Link to="/app/settings" className="block w-full py-4 bg-[#E31837] text-white font-black uppercase text-[10px] tracking-[0.2em] text-center rounded-xl hover:bg-red-700 transition-all shadow-xl shadow-red-900/20">Secure Access</Link>
-                    </div>
+                    {!isExternal && (
+                      <div className="bg-[#0c0c0c] border border-[#E31837]/30 p-8 rounded-3xl relative group">
+                        <Zap className="w-8 h-8 text-[#E31837] mb-4" />
+                        <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest mb-2">Priority Roster</p>
+                        <h3 className="text-xl font-black uppercase italic text-white tracking-tighter mb-2">Upgrade to PRO</h3>
+                        <div className="text-2xl font-black text-white italic mb-6 tracking-tighter">$9.99<span className="text-[10px] text-zinc-600 ml-1">/MO</span></div>
+                        <Link to="/app/settings" className="block w-full py-4 bg-[#E31837] text-white font-black uppercase text-[10px] tracking-[0.2em] text-center rounded-xl hover:bg-red-700 transition-all shadow-xl shadow-red-900/20">Secure Access</Link>
+                      </div>
+                    )}
                   </div>
                </div>
             </div>
@@ -388,7 +482,7 @@ export function CareerPage() {
             <PromoGenerator 
               isOpen={showVideoModal} 
               onClose={() => setShowVideoModal(false)} 
-              fighterName={userProfile?.displayName || 'The Contender'} 
+              fighterName={formData.displayName || 'The Contender'} 
             />
           </motion.div>
         )}

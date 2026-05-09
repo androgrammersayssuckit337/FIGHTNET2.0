@@ -73,7 +73,11 @@ export function SchedulesPage() {
   });
 
   const map = useMap();
-  const isMapsConfigured = import.meta.env.VITE_GOOGLE_MAPS_API_KEY && import.meta.env.VITE_GOOGLE_MAPS_API_KEY !== "";
+  const googleMapsKey = 
+    process.env.GOOGLE_MAPS_PLATFORM_KEY || 
+    (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY || 
+    '';
+  const isMapsConfigured = Boolean(googleMapsKey);
 
   useEffect(() => {
     const q = query(collection(db, 'schedules'));
@@ -279,6 +283,7 @@ export function SchedulesPage() {
               gestureHandling={'greedy'}
               className="w-full h-full"
               colorScheme="DARK"
+              internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
             >
               {fights.map((fight) => (
                 <Marker
@@ -306,12 +311,22 @@ export function SchedulesPage() {
               )}
             </Map>
            ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8">
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 bg-zinc-950">
               <div className="w-12 h-12 bg-[#E31837]/10 rounded-full flex items-center justify-center mb-4">
                 <MapPin className="w-6 h-6 text-[#E31837]" />
               </div>
-              <h3 className="font-display text-lg uppercase text-white mb-2">Event Map Locked</h3>
-              <p className="text-zinc-500 text-[9px] max-w-[180px] uppercase tracking-widest font-bold leading-relaxed">Ensure VITE_GOOGLE_MAPS_API_KEY is set and "Maps JavaScript API" is enabled in Cloud Console.</p>
+              <h3 className="font-display text-lg uppercase text-white mb-2 italic">Map Connection Offline</h3>
+              <p className="text-zinc-500 text-[9px] max-w-[180px] uppercase tracking-widest font-bold leading-relaxed mb-4">
+                Error: ApiNotActivatedMapError
+              </p>
+              <div className="space-y-2">
+                <p className="text-[8px] text-zinc-600 uppercase font-black tracking-widest leading-tight">
+                  1. Enable "Maps JavaScript API" in Google Cloud Console
+                </p>
+                <p className="text-[8px] text-zinc-600 uppercase font-black tracking-widest leading-tight">
+                  2. Set GOOGLE_MAPS_PLATFORM_KEY in Secrets
+                </p>
+              </div>
             </div>
            )}
           

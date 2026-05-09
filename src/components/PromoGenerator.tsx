@@ -189,6 +189,9 @@ export function PromoGenerator({ isOpen, onClose, fighterName }: PromoGeneratorP
                          controls 
                          autoPlay 
                          loop 
+                         muted
+                         playsInline
+                         preload="auto"
                          className="w-full h-full object-cover"
                        />
                        <div className="absolute top-4 left-4 bg-black/60 backdrop-blur text-white px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-2">

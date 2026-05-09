@@ -449,7 +449,7 @@ export function MessagesPage() {
                          {msg.mediaUrl && (
                            <div className="mb-2 rounded-lg overflow-hidden border border-white/10 max-w-sm">
                              {msg.mediaType === 'video' ? (
-                               <video src={msg.mediaUrl} controls className="w-full" />
+                               <video src={msg.mediaUrl} controls playsInline preload="metadata" className="w-full rounded-lg" />
                              ) : (
                                <img src={msg.mediaUrl} alt="" className="w-full object-cover" />
                              )}
@@ -472,7 +472,7 @@ export function MessagesPage() {
               {previewUrl && (
                  <div className="mb-4 relative max-w-xs rounded-xl border border-white/10 overflow-hidden">
                    {selectedFile?.type.startsWith('video') ? (
-                     <video src={previewUrl} className="w-full" controls />
+                     <video src={previewUrl} className="w-full" controls playsInline muted preload="metadata" />
                    ) : (
                      <img src={previewUrl} alt="Preview" className="w-full object-cover" />
                    )}

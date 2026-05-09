@@ -68,6 +68,32 @@ interface FighterProfile {
   highlights: Post[];
 }
 
+const renderContent = (content: string) => {
+  if (!content) return null;
+  const mentionRegex = /@\[([^\]]+)\]\(([^)]+)\)/g;
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = mentionRegex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(content.substring(lastIndex, match.index));
+    }
+    parts.push(
+      <Link key={match.index} to={`/app/profile/${match[2]}`} className="text-[#E31837] font-bold hover:underline transition-colors" onClick={(e) => e.stopPropagation()}>
+        @{match[1]}
+      </Link>
+    );
+    lastIndex = mentionRegex.lastIndex;
+  }
+
+  if (lastIndex < content.length) {
+    parts.push(content.substring(lastIndex));
+  }
+
+  return parts;
+};
+
 export function FeedPage() {
   const { currentUser, userProfile } = useAuth();
   const [view, setView] = useState<'feed' | 'scout'>('feed');
@@ -170,10 +196,10 @@ export function FeedPage() {
     if (showMentions) {
       const fetchSuggested = async () => {
         try {
-          const q = query(collection(db, 'users'), where('role', '==', 'fighter'));
+          const q = query(collection(db, 'users'));
           const snapshot = await getDocs(q);
           const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          const filtered = users.filter((u: Record<string, unknown>) => 
+          const filtered = users.filter((u: any) => 
             typeof u.displayName === 'string' && u.displayName.toLowerCase().includes(mentionQuery.toLowerCase())
           ).slice(0, 5);
           setSuggestedUsers(filtered as Array<{id: string, displayName: string, role: string, profileImageUrl?: string}>);
@@ -205,11 +231,24 @@ export function FeedPage() {
       
       const hydratedPosts = await Promise.all(postsData.map(async (post) => {
          try {
+           // Fallback for mediaType detection if missing but mediaUrl is present
+           let detectedMediaType = post.mediaType;
+           if (!detectedMediaType && post.mediaUrl) {
+             const videoExtensions = ['.mp4', '.mov', '.webm', '.ogg'];
+             const lowerUrl = post.mediaUrl.toLowerCase();
+             if (videoExtensions.some(ext => lowerUrl.includes(ext))) {
+               detectedMediaType = 'video';
+             } else {
+               detectedMediaType = 'image';
+             }
+           }
+
            const userDoc = await getDoc(doc(db, 'users', post.authorId));
            if (userDoc.exists()) {
              const userData = userDoc.data();
              return { 
                ...post, 
+               mediaType: detectedMediaType,
                authorName: userData.displayName, 
                authorImage: userData.profileImageUrl,
                authorRole: userData.role,
@@ -217,6 +256,8 @@ export function FeedPage() {
                authorGym: userData.gym
              };
            }
+           
+           return { ...post, mediaType: detectedMediaType };
          } catch(e) { console.error('Failed to fetch author', e) }
          return post;
       }));
@@ -326,32 +367,6 @@ export function FeedPage() {
     
     setNewPostContent(newTextBefore + textAfter);
     setShowMentions(false);
-  };
-
-  const renderContent = (content: string) => {
-    if (!content) return null;
-    const mentionRegex = /@\[([^\]]+)\]\(([^)]+)\)/g;
-    const parts = [];
-    let lastIndex = 0;
-    let match;
-
-    while ((match = mentionRegex.exec(content)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push(content.substring(lastIndex, match.index));
-      }
-      parts.push(
-        <Link key={match.index} to={`/app/profile/${match[2]}`} className="text-[#E31837] font-bold hover:underline transition-colors" onClick={(e) => e.stopPropagation()}>
-          @{match[1]}
-        </Link>
-      );
-      lastIndex = mentionRegex.lastIndex;
-    }
-
-    if (lastIndex < content.length) {
-      parts.push(content.substring(lastIndex));
-    }
-
-    return parts;
   };
 
   const handleCreatePost = async (e: React.FormEvent) => {
@@ -592,7 +607,8 @@ export function FeedPage() {
                                       src={vid.mediaUrl} 
                                       className="w-full h-full object-cover"
                                       muted
-                                      onMouseOver={(e) => e.currentTarget.play()}
+                                      playsInline
+                                       onMouseOver={(e) => e.currentTarget.play()}
                                       onMouseOut={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
                                     />
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-4">
@@ -751,17 +767,19 @@ export function FeedPage() {
               {/* Post Header */}
               <div className="flex items-start justify-between mb-4">
                  <div className="flex items-center gap-4">
-                   <div className="relative">
-                      <img src={post.authorImage || `https://ui-avatars.com/api/?name=${post.authorName}&background=000&color=fff`} className="w-12 h-12 rounded-full border-2 border-white/5 object-cover" alt="" />
+                   <Link to={`/app/profile/${post.authorId}`} className="relative group/avatar">
+                      <img src={post.authorImage || `https://ui-avatars.com/api/?name=${post.authorName}&background=000&color=fff`} className="w-12 h-12 rounded-full border-2 border-white/5 object-cover group-hover/avatar:border-[#E31837]/50 transition-colors" alt="" />
                       {post.authorRole === 'fighter' && (
                         <div className="absolute -bottom-1 -right-1 bg-[#E31837] text-white p-0.5 rounded-full border-2 border-black">
                           <Trophy className="w-3 h-3" />
                         </div>
                       )}
-                   </div>
+                   </Link>
                    <div>
                      <div className="flex items-center gap-2">
-                        <h3 className="font-black text-white text-base tracking-tight uppercase italic">{post.authorName}</h3>
+                        <Link to={`/app/profile/${post.authorId}`} className="hover:text-[#E31837] transition-colors">
+                          <h3 className="font-black text-white text-base tracking-tight uppercase italic">{post.authorName}</h3>
+                        </Link>
                         {post.authorRole === 'fighter' && post.authorRecord && (
                           <span className="text-[10px] bg-red-900/20 text-[#E31837] px-1.5 py-0.5 font-black rounded uppercase">{post.authorRecord}</span>
                         )}
@@ -799,6 +817,8 @@ export function FeedPage() {
                           className="w-full h-full object-contain"
                           controls
                           playsInline
+                           muted
+                           preload="metadata"
                         />
                         <div className="absolute top-4 right-4 z-20">
                            <button 
@@ -1006,6 +1026,30 @@ function CommentSection({ postId }: { postId: string }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { userProfile } = useAuth();
 
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionCursorPosition, setMentionCursorPosition] = useState(0);
+  const [suggestedUsers, setSuggestedUsers] = useState<Array<{id: string, displayName: string, role: string, profileImageUrl?: string}>>([]);
+
+  useEffect(() => {
+    if (showMentions) {
+      const fetchSuggested = async () => {
+        try {
+          const q = query(collection(db, 'users'));
+          const snapshot = await getDocs(q);
+          const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          const filtered = users.filter((u: any) => 
+            typeof u.displayName === 'string' && u.displayName.toLowerCase().includes(mentionQuery.toLowerCase())
+          ).slice(0, 5);
+          setSuggestedUsers(filtered as any);
+        } catch (error) {
+          console.error("Error fetching mentions", error);
+        }
+      };
+      fetchSuggested();
+    }
+  }, [mentionQuery, showMentions]);
+
   useEffect(() => {
     const q = query(
       collection(db, 'posts', postId, 'comments'),
@@ -1045,18 +1089,56 @@ function CommentSection({ postId }: { postId: string }) {
     }
   };
 
+  const handleContentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setNewComment(value);
+
+    const cursorPosition = e.target.selectionStart || 0;
+    const textBeforeCursor = value.substring(0, cursorPosition);
+    const words = textBeforeCursor.split(/\s/);
+    const lastWord = words[words.length - 1];
+
+    if (lastWord.startsWith('@')) {
+      const q = lastWord.substring(1);
+      setMentionQuery(q);
+      setShowMentions(true);
+      setMentionCursorPosition(cursorPosition);
+    } else {
+      setShowMentions(false);
+    }
+  };
+
+  const handleSelectMention = (user: {id: string, displayName: string, role: string, profileImageUrl?: string}) => {
+    const value = newComment;
+    const textBeforeCursor = value.substring(0, mentionCursorPosition);
+    const words = textBeforeCursor.split(/\s/);
+    words.pop(); // remove the partial mention
+    
+    const mentionText = `@[${user.displayName}](${user.id}) `;
+    
+    const newTextBefore = words.length > 0 ? words.join(' ') + ' ' + mentionText : mentionText;
+    const textAfter = value.substring(mentionCursorPosition);
+    
+    setNewComment(newTextBefore + textAfter);
+    setShowMentions(false);
+  };
+
   return (
     <div className="mt-4 space-y-4 border-t border-white/5 pt-4 animate-in slide-in-from-top-2 duration-300">
       <div className="space-y-4 max-h-60 overflow-y-auto pr-2 scrollbar-hide">
         {comments.map(comment => (
           <div key={comment.id} className="flex gap-3 items-start group/comment">
-            <img src={comment.authorImage || `https://ui-avatars.com/api/?name=${comment.authorName}&background=000&color=fff`} className="w-8 h-8 rounded-full border border-white/10" alt="" />
+            <Link to={`/app/profile/${comment.authorId}`} className="shrink-0">
+              <img src={comment.authorImage || `https://ui-avatars.com/api/?name=${comment.authorName}&background=000&color=fff`} className="w-8 h-8 rounded-full border border-white/10 hover:border-[#E31837]/50 transition-colors" alt="" />
+            </Link>
             <div className="flex-1 bg-zinc-900/50 p-3 rounded-2xl border border-white/5">
               <div className="flex justify-between items-center mb-1">
-                <span className="text-[10px] font-black text-white uppercase italic">{comment.authorName}</span>
+                <Link to={`/app/profile/${comment.authorId}`} className="hover:text-[#E31837] transition-colors">
+                  <span className="text-[10px] font-black text-white uppercase italic">{comment.authorName}</span>
+                </Link>
                 <span className="text-[8px] text-zinc-600 font-bold uppercase">{formatDistanceToNow(comment.createdAt)} ago</span>
               </div>
-              <p className="text-xs text-zinc-300 leading-relaxed">{comment.content}</p>
+              <p className="text-xs text-zinc-300 leading-relaxed">{renderContent(comment.content)}</p>
             </div>
           </div>
         ))}
@@ -1065,13 +1147,33 @@ function CommentSection({ postId }: { postId: string }) {
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="flex gap-3 items-center">
-        <input 
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          placeholder="Add your take..."
-          className="flex-1 bg-black border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:border-[#E31837] outline-none"
-        />
+      <form onSubmit={handleSubmit} className="flex gap-3 items-center relative">
+        <div className="flex-1 relative">
+          <input 
+            value={newComment}
+            onChange={handleContentChange}
+            placeholder="Add your take..."
+            className="w-full bg-black border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:border-[#E31837] outline-none"
+          />
+          
+          {showMentions && suggestedUsers.length > 0 && (
+            <div className="absolute bottom-full left-0 w-full mb-2 bg-zinc-900 border border-white/10 rounded-lg shadow-2xl z-50 overflow-hidden text-sm max-h-48 overflow-y-auto">
+              {suggestedUsers.map(u => (
+                <div 
+                  key={u.id}
+                  onClick={() => handleSelectMention(u)}
+                  className="flex items-center gap-3 p-3 hover:bg-zinc-800 cursor-pointer transition-colors"
+                >
+                  <img src={u.profileImageUrl || `https://ui-avatars.com/api/?name=${u.displayName}&background=111&color=fff`} className="w-8 h-8 rounded-full border border-white/10" alt="" />
+                  <div>
+                    <p className="font-bold text-white text-xs">{u.displayName}</p>
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{u.role}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <button 
           disabled={!newComment.trim() || isSubmitting}
           className="bg-[#E31837] text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase italic disabled:opacity-50"

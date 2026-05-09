@@ -43,7 +43,11 @@ const REAL_GYMS: Gym[] = [
 export function GymLocatorPage() {
   const [selectedGym, setSelectedGym] = useState<Gym | null>(null);
   const map = useMap();
-  const isMapsConfigured = import.meta.env.VITE_GOOGLE_MAPS_API_KEY && import.meta.env.VITE_GOOGLE_MAPS_API_KEY !== "";
+  const googleMapsKey = 
+    process.env.GOOGLE_MAPS_PLATFORM_KEY || 
+    (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY || 
+    '';
+  const isMapsConfigured = Boolean(googleMapsKey);
 
   const handleGymClick = (gym: Gym) => {
     setSelectedGym(gym);
@@ -72,6 +76,7 @@ export function GymLocatorPage() {
               gestureHandling={'greedy'}
               className="w-full h-full"
               colorScheme="DARK"
+              internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
             >
               {REAL_GYMS.map((gym) => (
                 <Marker
@@ -97,15 +102,32 @@ export function GymLocatorPage() {
               )}
             </Map>
           ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8">
-              <div className="w-16 h-16 bg-[#E31837]/10 rounded-full flex items-center justify-center mb-4">
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 bg-zinc-950">
+              <div className="w-16 h-16 bg-[#E31837]/10 rounded-full flex items-center justify-center mb-6">
                 <MapPin className="w-8 h-8 text-[#E31837]" />
               </div>
-              <h3 className="font-display text-xl uppercase text-white mb-2">Maps Connectivity</h3>
-              <p className="text-zinc-500 text-xs max-w-xs uppercase tracking-widest font-bold">Please add your VITE_GOOGLE_MAPS_API_KEY and ensure "Maps JavaScript API" is enabled in your Google Cloud Console.</p>
-              <div className="mt-8 grid grid-cols-2 gap-4 w-full max-w-sm opacity-20 pointer-events-none">
-                <div className="h-24 bg-zinc-900 rounded-lg border border-white/5"></div>
-                <div className="h-24 bg-zinc-900 rounded-lg border border-white/5"></div>
+              <h3 className="font-display text-2xl uppercase text-white mb-4 italic tracking-tighter">Maps Connectivity Offline</h3>
+              
+              <div className="max-w-md space-y-4">
+                <p className="text-zinc-400 text-xs uppercase tracking-[0.2em] font-black italic">
+                  Critical Error: ApiNotActivatedMapError
+                </p>
+                <div className="text-left bg-black/50 border border-white/5 p-6 rounded-2xl space-y-4">
+                  <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-relaxed">
+                    1. Ensure "Maps JavaScript API" is enabled in your Google Cloud Console.
+                  </p>
+                  <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-relaxed">
+                    2. Add your API key as <code className="text-[#E31837] bg-[#E31837]/10 px-1 rounded">GOOGLE_MAPS_PLATFORM_KEY</code> in Settings → Secrets.
+                  </p>
+                  <a 
+                    href="https://console.cloud.google.com/google/maps-apis/api-list" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="block w-full py-3 bg-[#E31837] text-white text-[10px] font-black text-center uppercase tracking-widest rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-900/20"
+                  >
+                    Enable API Now
+                  </a>
+                </div>
               </div>
             </div>
           )}

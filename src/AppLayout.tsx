@@ -146,6 +146,7 @@ export function AppLayout() {
             <Route path="/schedules" element={<SchedulesPage />} />
             <Route path="/store" element={<StorePage />} />
             <Route path="/career" element={<CareerPage />} />
+            <Route path="/profile/:userId" element={<CareerPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/app" />} />
           </Routes>
@@ -173,10 +174,13 @@ export function AppRoutes() {
     );
   }
 
-  const googleMapsKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  const googleMapsKey = 
+    process.env.GOOGLE_MAPS_PLATFORM_KEY || 
+    (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY || 
+    '';
 
   return (
-    <APIProvider apiKey={googleMapsKey || ''}>
+    <APIProvider apiKey={googleMapsKey} version="weekly">
       <Routes>
         <Route path="/" element={!currentUser ? <LandingPage /> : <Navigate to="/app" />} />
         <Route
