@@ -8,7 +8,8 @@ import {
   where,
   orderBy, 
   onSnapshot, 
-  addDoc, 
+  addDoc,
+  getDocs,
   doc, 
   getDoc, 
   serverTimestamp, 
@@ -18,7 +19,7 @@ import {
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { handleFirestoreError, OperationType } from '../../utils/error';
 import { formatDistanceToNow } from 'date-fns';
-import { Heart, MessageSquare, Share2, Trophy, MapPin, ExternalLink, Camera, Shield } from 'lucide-react';
+import { Heart, MessageSquare, Share2, Trophy, MapPin, ExternalLink, Camera, Shield, Video } from 'lucide-react';
 
 interface Post {
   id: string;
@@ -44,6 +45,31 @@ export function FeedPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const quickVideoInputRef = useRef<HTMLInputElement>(null);
+
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionCursorPosition, setMentionCursorPosition] = useState(0);
+  const [suggestedUsers, setSuggestedUsers] = useState<Array<{id: string, displayName: string, role: string, profileImageUrl?: string}>>([]);
+
+  useEffect(() => {
+    if (showMentions) {
+      const fetchSuggested = async () => {
+        try {
+          const q = query(collection(db, 'users'), where('role', '==', 'fighter'));
+          const snapshot = await getDocs(q);
+          const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          const filtered = users.filter((u: Record<string, unknown>) => 
+            typeof u.displayName === 'string' && u.displayName.toLowerCase().includes(mentionQuery.toLowerCase())
+          ).slice(0, 5);
+          setSuggestedUsers(filtered as Array<{id: string, displayName: string, role: string, profileImageUrl?: string}>);
+        } catch (error) {
+          console.error("Error fetching mentions", error);
+        }
+      };
+      fetchSuggested();
+    }
+  }, [mentionQuery, showMentions]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -129,6 +155,91 @@ export function FeedPage() {
     });
   };
 
+  const handleQuickVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && currentUser) {
+      setIsSubmitting(true);
+      try {
+        const mediaUrl = await handleFileUpload(file);
+        await addDoc(collection(db, 'posts'), {
+          authorId: currentUser.uid,
+          content: `Just uploaded a new fight video: ${file.name}`,
+          createdAt: serverTimestamp(),
+          likesCount: 0,
+          mediaUrl,
+          mediaType: 'video',
+          status: 'published'
+        });
+        setUploadProgress(0);
+        if (quickVideoInputRef.current) quickVideoInputRef.current.value = '';
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, 'posts', auth);
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+  };
+
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setNewPostContent(value);
+
+    const cursorPosition = e.target.selectionStart;
+    const textBeforeCursor = value.substring(0, cursorPosition);
+    const words = textBeforeCursor.split(/\s/);
+    const lastWord = words[words.length - 1];
+
+    if (lastWord.startsWith('@')) {
+      const q = lastWord.substring(1);
+      setMentionQuery(q);
+      setShowMentions(true);
+      setMentionCursorPosition(cursorPosition);
+    } else {
+      setShowMentions(false);
+    }
+  };
+
+  const handleSelectMention = (user: {id: string, displayName: string, role: string, profileImageUrl?: string}) => {
+    const value = newPostContent;
+    const textBeforeCursor = value.substring(0, mentionCursorPosition);
+    const words = textBeforeCursor.split(/\s/);
+    words.pop(); // remove the partial mention
+    
+    const mentionText = `@[${user.displayName}](${user.id}) `;
+    
+    const newTextBefore = words.length > 0 ? words.join(' ') + ' ' + mentionText : mentionText;
+    const textAfter = value.substring(mentionCursorPosition);
+    
+    setNewPostContent(newTextBefore + textAfter);
+    setShowMentions(false);
+  };
+
+  const renderContent = (content: string) => {
+    if (!content) return null;
+    const mentionRegex = /@\[([^\]]+)\]\(([^)]+)\)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = mentionRegex.exec(content)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(content.substring(lastIndex, match.index));
+      }
+      parts.push(
+        <Link key={match.index} to={`/app/profile/${match[2]}`} className="text-[#E31837] font-bold hover:underline transition-colors" onClick={(e) => e.stopPropagation()}>
+          @{match[1]}
+        </Link>
+      );
+      lastIndex = mentionRegex.lastIndex;
+    }
+
+    if (lastIndex < content.length) {
+      parts.push(content.substring(lastIndex));
+    }
+
+    return parts;
+  };
+
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPostContent.trim() || !currentUser) return;
@@ -148,7 +259,7 @@ export function FeedPage() {
         createdAt: serverTimestamp(),
         likesCount: 0,
         mediaUrl,
-        mediaType: file?.type.startsWith('video') ? 'video' : 'image',
+        mediaType: file ? (file.type.startsWith('video') ? 'video' : 'image') : '',
         status: 'published'
       });
       
@@ -211,18 +322,36 @@ export function FeedPage() {
           </div>
         </div>
 
-        {userProfile?.role === 'fighter' && (
+        {userProfile && (
           <form onSubmit={handleCreatePost} className="bg-zinc-950 border border-white/10 rounded-xl p-6 shadow-2xl relative group overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-[#E31837]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <div className="flex gap-5 relative z-10">
               <img src={userProfile.profileImageUrl || `https://ui-avatars.com/api/?name=${userProfile.displayName}&background=111&color=fff`} alt="" className="w-10 h-10 rounded-full border border-white/10 object-cover" />
-              <div className="flex-1">
+              <div className="flex-1 relative">
                 <textarea 
                   value={newPostContent}
-                  onChange={(e) => setNewPostContent(e.target.value)}
+                  onChange={handleContentChange}
                   placeholder="Drop a highlight, training clip, or career news..."
                   className="w-full bg-transparent text-lg font-medium text-white placeholder-zinc-700 underline-offset-8 decoration-[#E31837]/20 focus:outline-none resize-none mb-4 min-h-[100px]"
                 />
+                
+                {showMentions && suggestedUsers.length > 0 && (
+                  <div className="absolute top-16 left-0 w-64 bg-zinc-900 border border-white/10 rounded-lg shadow-2xl z-50 overflow-hidden text-sm max-h-48 overflow-y-auto">
+                    {suggestedUsers.map(u => (
+                      <div 
+                        key={u.id}
+                        onClick={() => handleSelectMention(u)}
+                        className="flex items-center gap-3 p-3 hover:bg-zinc-800 cursor-pointer transition-colors"
+                      >
+                        <img src={u.profileImageUrl || `https://ui-avatars.com/api/?name=${u.displayName}&background=111&color=fff`} className="w-8 h-8 rounded-full border border-white/10" alt="" />
+                        <div>
+                          <p className="font-bold text-white text-xs">{u.displayName}</p>
+                          <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{u.role}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 
                 {previewUrl && (
                   <div className="relative mb-4 group/preview">
@@ -277,6 +406,21 @@ export function FeedPage() {
                             setNewPostContent(prev => prev || `Fresh ${isVid ? 'tape' : 'shot'}: ${file.name}`);
                           }
                         }}
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => quickVideoInputRef.current?.click()}
+                        className="text-zinc-500 hover:text-[#E31837] text-[10px] font-black uppercase flex items-center gap-2 transition-all group/btn"
+                      >
+                        <Video className="w-4 h-4" />
+                        <span>Quick Video Upload</span>
+                      </button>
+                      <input 
+                        type="file" 
+                        ref={quickVideoInputRef} 
+                        className="hidden" 
+                        accept="video/*"
+                        onChange={handleQuickVideoUpload}
                       />
                    </div>
                    <button 
@@ -333,7 +477,7 @@ export function FeedPage() {
               </div>
                
               <div className="mb-6">
-                 <p className="text-zinc-200 text-lg md:text-xl font-medium leading-relaxed tracking-tight whitespace-pre-wrap">{post.content}</p>
+                 <p className="text-zinc-200 text-lg md:text-xl font-medium leading-relaxed tracking-tight whitespace-pre-wrap">{renderContent(post.content)}</p>
               </div>
 
                {/* Media Display */}

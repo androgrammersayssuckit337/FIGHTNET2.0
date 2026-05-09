@@ -23,8 +23,8 @@ export function LandingPage() {
     setErrorMsg(null);
     try {
       await loginWithGoogle(role);
-    } catch (error: any) {
-      if (error.message === 'LOGIN_CANCELLED') {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message === 'LOGIN_CANCELLED') {
         setErrorMsg('Login cancelled. Please try again.');
       } else {
         setErrorMsg('Authentication failed. Please check your connection.');
@@ -46,8 +46,34 @@ export function LandingPage() {
       } else {
         await loginWithEmail(email, password);
       }
-    } catch (error: any) {
-      setErrorMsg(error.message || 'Authentication failed');
+    } catch (error: unknown) {
+      const err = error as Error & { code?: string };
+      let message = err.message || 'Authentication failed';
+      
+      // Try to parse JSON error from AuthContext
+      try {
+        const parsed = JSON.parse(message);
+        if (parsed.error && parsed.operationType) {
+          message = `Firebase Error: ${parsed.error} (During ${parsed.operationType} on ${parsed.path})`;
+          
+          if (parsed.error.includes('Missing or insufficient permissions')) {
+            message = "Permission Denied: Your account doesn't have the required permissions. If this is a new account, please try refreshing the page in a few moments.";
+          }
+        }
+      } catch {
+        // Not a JSON error
+        if (message.includes('auth/operation-not-allowed')) {
+          message = "Email/Password login is not enabled in the Firebase Console. Please enable it or use Google Login.";
+        } else if (message.includes('auth/email-already-in-use')) {
+          message = "This email is already registered. Try signing in instead.";
+        } else if (message.includes('auth/weak-password')) {
+          message = "The password is too weak. Please use at least 6 characters.";
+        } else if (message.includes('auth/invalid-email')) {
+          message = "Please enter a valid email address.";
+        }
+      }
+      
+      setErrorMsg(message);
       console.error(error);
     } finally {
       setIsLoggingIn(false);
@@ -137,9 +163,9 @@ export function LandingPage() {
         <button 
           onClick={() => handleGoogleLogin(selectedRole)}
           disabled={isLoggingIn}
-          className="w-full bg-black border border-white/5 text-white py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-zinc-900 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+          className="w-full bg-black border border-[#E31837]/20 text-white py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-[#E31837]/10 hover:border-[#E31837] transition-all flex items-center justify-center gap-3 disabled:opacity-50 group"
         >
-          <Chrome className="w-4 h-4" />
+          <Chrome className="w-4 h-4 text-[#E31837] group-hover:scale-110 transition-transform" />
           Google Account
         </button>
 
@@ -174,7 +200,7 @@ export function LandingPage() {
         animate={{ scale: [1, 1.1, 1], rotate: [0, 1, 0] }}
         transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
         className="absolute inset-0 z-0 opacity-20 bg-cover bg-center bg-no-repeat transition-transform"
-        style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1555597673-b21d5c935865?q=80&w=2000&auto=format&fit=crop)' }}
+        style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1599058917232-d750c1859d7c?q=80&w=2000&auto=format&fit=crop)' }}
       />
       <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#0a0a0a]/60 via-[#0a0a0a]/90 to-[#0a0a0a]"></div>
 

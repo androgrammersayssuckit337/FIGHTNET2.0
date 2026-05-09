@@ -2,7 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import { AppRoutes } from './components/AppLayout';
+import { AppRoutes } from './AppLayout';
 
 export default function App() {
   return (

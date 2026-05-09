@@ -1,16 +1,16 @@
 import React from 'react';
 import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from './contexts/AuthContext';
 import { LogOut } from 'lucide-react';
-import { Logo } from './Logo';
-import { FeedPage } from './pages/FeedPage';
-import { LandingPage } from './pages/LandingPage';
-import { MessagesPage } from './pages/MessagesPage';
-import { SponsorsPage } from './pages/SponsorsPage';
-import { GymLocatorPage } from './pages/GymLocatorPage';
-import { StorePage } from './pages/StorePage';
-import { CareerPage } from './pages/CareerPage';
-import { SchedulesPage } from './pages/SchedulesPage';
+import { Logo } from './components/Logo';
+import { FeedPage } from './components/pages/FeedPage';
+import { LandingPage } from './components/pages/LandingPage';
+import { MessagesPage } from './components/pages/MessagesPage';
+import { SponsorsPage } from './components/pages/SponsorsPage';
+import { GymLocatorPage } from './components/pages/GymLocatorPage';
+import { StorePage } from './components/pages/StorePage';
+import { CareerPage } from './components/pages/CareerPage';
+import { SchedulesPage } from './components/pages/SchedulesPage';
 import { APIProvider } from '@vis.gl/react-google-maps';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {

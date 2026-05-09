@@ -11,6 +11,7 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../utils/error';
 
 interface UserProfile {
   displayName: string;
@@ -90,13 +91,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const ensureProfile = async (user: User, role: 'fighter' | 'fan' | 'sponsor' = 'fan') => {
+  const ensureProfile = async (user: User, role: 'fighter' | 'fan' | 'sponsor' = 'fan', customName?: string) => {
     const docRef = doc(db, 'users', user.uid);
-    const docSnap = await getDoc(docRef);
+    let docSnap;
+    try {
+      docSnap = await getDoc(docRef);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, `users/${user.uid}`, auth);
+      return;
+    }
     
     if (!docSnap.exists()) {
       const newPublicProfile: Record<string, unknown> = {
-        displayName: user.displayName || 'Anonymous Fighter',
+        displayName: customName || user.displayName || 'Anonymous Fighter',
         role: role,
         profileImageUrl: user.photoURL || '',
         bio: '',
@@ -111,9 +118,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updatedAt: serverTimestamp()
       };
 
-      // Batch or sequence doesn't matter much for creation here but private first
-      await setDoc(doc(db, 'users', user.uid, 'private', 'info'), newPrivateInfo);
-      await setDoc(docRef, newPublicProfile);
+      try {
+        await setDoc(doc(db, 'users', user.uid, 'private', 'info'), newPrivateInfo);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}/private/info`, auth);
+      }
+      
+      try {
+        await setDoc(docRef, newPublicProfile);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}`, auth);
+      }
       
       setUserProfile({
         ...newPublicProfile,
@@ -137,18 +152,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await ensureProfile(result.user, role);
     } catch (error: unknown) {
       if (error instanceof Error && (error as unknown as { code: string }).code === 'auth/popup-closed-by-user') {
-        throw new Error('LOGIN_CANCELLED');
+        throw new Error('LOGIN_CANCELLED', { cause: error });
       }
       console.error("Login failed:", error);
       throw error;
     }
   };
 
-  const registerWithEmail = async (email: string, password: string, displayName: string, role: 'fighter' | 'fan' | 'sponsor') => {
+  const registerWithEmail = async (email: string, password: string, name: string, role: 'fighter' | 'fan' | 'sponsor') => {
     try {
       const result = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(result.user, { displayName });
-      await ensureProfile(result.user, role);
+      await updateProfile(result.user, { displayName: name });
+      await ensureProfile(result.user, role, name);
     } catch (error) {
       console.error("Registration failed:", error);
       throw error;

@@ -24,7 +24,7 @@ interface FirestoreErrorInfo {
   }
 }
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null, auth: any) {
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null, auth: { currentUser?: { uid?: string; email?: string | null; emailVerified?: boolean; isAnonymous?: boolean; tenantId?: string | null; providerData?: { providerId: string; email: string | null }[] } | null }) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -33,7 +33,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
       emailVerified: auth.currentUser?.emailVerified,
       isAnonymous: auth.currentUser?.isAnonymous,
       tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map((provider: any) => ({
+      providerInfo: auth.currentUser?.providerData?.map((provider: { providerId: string; email: string | null }) => ({
         providerId: provider.providerId,
         email: provider.email,
       })) || []

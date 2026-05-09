@@ -25,7 +25,7 @@ export function PromoGenerator({ isOpen, onClose, fighterName }: PromoGeneratorP
       setProgressStatus('Checking access...');
 
       // Follow the AI Studio window pattern for API key
-      const win = window as any;
+      const win = window as unknown as { handleAIVideoRequest?: (param: string) => Promise<string> };
       if (win.aistudio && win.aistudio.hasSelectedApiKey) {
         if (!(await win.aistudio.hasSelectedApiKey())) {
           await win.aistudio.openSelectKey();
@@ -79,7 +79,7 @@ export function PromoGenerator({ isOpen, onClose, fighterName }: PromoGeneratorP
         throw new Error("Failed to retrieve generated video URI from response.");
       }
 
-      setVideoUri(downloadLink);
+      setVideoBlobUrl(downloadLink);
       setProgressStatus('Downloading generation...');
 
       const response = await fetch(downloadLink, {
@@ -98,13 +98,14 @@ export function PromoGenerator({ isOpen, onClose, fighterName }: PromoGeneratorP
       setVideoBlobUrl(objectUrl);
       setProgressStatus('');
 
-    } catch (err: any) {
-      console.error('Video generation error:', err);
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error('Video generation error:', errorMsg);
       // specific catch for 'entity was not found' -> reset key
-      if (err.message && err.message.includes('Requested entity was not found')) {
+      if (errorMsg.includes('Requested entity was not found')) {
         setError('Google Cloud API Error: Ensure you have an active GCP project with Vertex AI/Gemini billing enabled. You may need to re-select your key.');
       } else {
-        setError(err.message || "An unexpected error occurred during video generation.");
+        setError(errorMsg || "An unexpected error occurred during video generation.");
       }
     } finally {
       setIsGenerating(false);

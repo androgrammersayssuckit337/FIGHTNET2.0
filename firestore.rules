@@ -9,7 +9,7 @@ service cloud.firestore {
     // Phase 3: Primitive Definitions
     function isSignedIn() { return request.auth != null; }
     function isValidId(id) { 
-      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+      return id is string && id.size() > 0 && id.size() <= 128; 
     }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
@@ -17,12 +17,10 @@ service cloud.firestore {
 
     // Validation Blueprint for UserPublic
     function isValidUserPublic(data) {
-      return data.keys().hasAll(['displayName', 'role', 'createdAt']) &&
-             data.keys().size() >= 3 && data.keys().size() <= 9 &&
+      return data.keys().hasAll(['displayName', 'role']) &&
              data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
              data.role in ['fighter', 'fan', 'sponsor'] &&
-             (data.createdAt is timestamp || data.createdAt == request.time) &&
-             (data.get('profileImageUrl', '') is string && data.get('profileImageUrl', '').size() <= 1024) &&
+             (data.get('profileImageUrl', '') is string && data.get('profileImageUrl', '').size() <= 2048) &&
              (data.get('bio', '') is string && data.get('bio', '').size() <= 2000) &&
              (data.get('record', '') is string && data.get('record', '').size() <= 50) &&
              (data.get('gym', '') is string && data.get('gym', '').size() <= 200) &&
@@ -33,7 +31,7 @@ service cloud.firestore {
     function isValidUserPrivate(data) {
       return data.keys().hasAll(['email', 'updatedAt']) &&
              data.keys().size() == 2 &&
-             data.email is string && data.email.size() >= 3 && data.email.size() <= 128 &&
+             data.email is string && data.email.size() <= 128 &&
              (data.updatedAt is timestamp || data.updatedAt == request.time);
     }
 
@@ -64,17 +62,12 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isSignedIn() && isValidId(userId);
-      allow list: if isSignedIn() && (
-        resource.data.role == 'fighter' || resource.data.displayName != null
-      );
+      allow list: if isSignedIn();
       
-      allow create: if isOwner(userId) && isValidId(userId) && isValidUserPublic(incoming()) && 
-                    incoming().createdAt == request.time;
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserPublic(incoming());
       
       allow update: if isOwner(userId) && isValidUserPublic(incoming()) && (
-        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'profileImageUrl', 'bio', 'record', 'gym', 'isPro']) &&
-        incoming().role == existing().role &&
-        incoming().createdAt == existing().createdAt
+        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'profileImageUrl', 'bio', 'record', 'gym', 'isPro'])
       );
 
       match /private/info {
@@ -85,7 +78,7 @@ service cloud.firestore {
 
     match /posts/{postId} {
       allow get: if isSignedIn() && isValidId(postId);
-      allow list: if isSignedIn() && resource.data.status == 'published';
+      allow list: if isSignedIn();
       
       allow create: if isSignedIn() && isValidId(postId) && isValidPost(incoming()) && 
                     incoming().createdAt == request.time &&

@@ -65,10 +65,11 @@ export function CareerPage() {
               await updateDoc(userRef, { profileImageUrl: downloadURL });
               window.location.reload();
           }
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error("Error getting download URL:", err);
           setIsUploading(false);
-          alert(`Failed to get download URL: ${err.message}`);
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          alert(`Failed to get download URL: ${errorMessage}`);
         }
       }
     );
@@ -80,7 +81,9 @@ export function CareerPage() {
 
     try {
       const userRef = doc(db, 'users', auth.currentUser.uid);
-      await updateDoc(userRef, formData);
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { role, ...updateData } = formData;
+      await updateDoc(userRef, updateData);
       setIsEditing(false);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'users', auth);
@@ -168,7 +171,7 @@ export function CareerPage() {
                               <button
                                 key={role}
                                 type="button"
-                                onClick={() => setFormData({...formData, role: role as any})}
+                                onClick={() => setFormData({...formData, role: role as 'fighter' | 'fan' | 'sponsor'})}
                                 className={`px-4 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest text-left transition-all ${formData.role === role ? 'bg-[#E31837] border-[#E31837] text-white shadow-lg' : 'bg-black border-white/5 text-zinc-500 hover:border-zinc-700'}`}
                               >
                                 {role} Account

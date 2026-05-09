@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Edit, Send, ShieldAlert } from 'lucide-react';
+import { Search, Edit, Send, ShieldAlert, Paperclip, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { db, auth } from '../../firebase';
+import { db, auth, storage } from '../../firebase';
 import { 
   collection, 
   query, 
@@ -12,8 +12,10 @@ import {
   serverTimestamp, 
   doc, 
   getDoc,
+  getDocs,
   updateDoc
 } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { handleFirestoreError, OperationType } from '../../utils/error';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -22,6 +24,8 @@ interface Message {
   senderId: string;
   content: string;
   createdAt: number;
+  mediaUrl?: string;
+  mediaType?: string;
 }
 
 interface ChatRoom {
@@ -45,13 +49,23 @@ export function MessagesPage() {
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{id: string, displayName: string, profileImageUrl?: string, role: string}[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, previewUrl]);
 
   // Listen for Chat Rooms
   useEffect(() => {
@@ -129,29 +143,150 @@ export function MessagesPage() {
     return unsubscribe;
   }, [selectedRoomId]);
 
+  // Handle user search
+  useEffect(() => {
+    if (searchQuery.trim().length === 0) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    const searchUsers = async () => {
+      try {
+        const q = query(
+          collection(db, 'users'),
+          where('displayName', '>=', searchQuery),
+          where('displayName', '<=', searchQuery + '\uf8ff')
+        );
+        const snapshot = await getDocs(q);
+        const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as { id: string, displayName: string, profileImageUrl?: string, role: string }));
+        // Filter out current user
+        setSearchResults(users.filter(u => u.id !== currentUser?.uid));
+      } catch (error) {
+        console.error("Error searching users", error);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+    
+    // Debounce search
+    const timeoutId = setTimeout(() => {
+      searchUsers();
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, currentUser]);
+
+  const handleStartChat = async (userId: string) => {
+    // Check if a room already exists with this user
+    const existingRoom = rooms.find(r => r.participantIds.includes(userId));
+    if (existingRoom) {
+      setSelectedRoomId(existingRoom.id);
+    } else {
+      // Create new room
+      if (!currentUser) return;
+      try {
+        const newRoomRef = await addDoc(collection(db, 'chatRooms'), {
+          participantIds: [currentUser.uid, userId],
+          updatedAt: serverTimestamp()
+        });
+        setSelectedRoomId(newRoomRef.id);
+      } catch (error) {
+        console.error("Error creating chat room", error);
+        handleFirestoreError(error, OperationType.CREATE, 'chatRooms', auth);
+      }
+    }
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      
+      const fileReader = new FileReader();
+      fileReader.onload = (event) => {
+        if (event.target?.result) {
+          setPreviewUrl(event.target.result as string);
+        }
+      };
+      fileReader.readAsDataURL(file);
+    }
+  };
+
+  const removeFile = () => {
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleFileUpload = async (file: File): Promise<string> => {
+    if (!currentUser) throw new Error("No user");
+    
+    return new Promise((resolve, reject) => {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `chatMedia/${currentUser.uid}/${selectedRoomId}/${Date.now()}.${fileExt}`;
+      const storageRef = ref(storage, fileName);
+      
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      uploadTask.on('state_changed', 
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          setUploadProgress(progress);
+        }, 
+        (error) => {
+          console.error("Upload failed", error);
+          reject(error);
+        }, 
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          resolve(downloadURL);
+        }
+      );
+    });
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedRoomId || !currentUser) return;
+    if ((!newMessage.trim() && !selectedFile) || !selectedRoomId || !currentUser || isSubmitting) return;
 
+    setIsSubmitting(true);
     const content = newMessage.trim();
+    const currentSelectedFile = selectedFile;
+    
     setNewMessage('');
+    removeFile();
+    setUploadProgress(0);
 
     try {
+      let mediaUrl = '';
+      if (currentSelectedFile) {
+        mediaUrl = await handleFileUpload(currentSelectedFile);
+      }
+
+      const mediaType = currentSelectedFile ? (currentSelectedFile.type.startsWith('video') ? 'video' : 'image') : '';
+
       // Add message
       await addDoc(collection(db, 'chatRooms', selectedRoomId, 'messages'), {
         senderId: currentUser.uid,
         content,
+        ...(mediaUrl && { mediaUrl, mediaType }),
         createdAt: serverTimestamp()
       });
 
       // Update room metadata
       await updateDoc(doc(db, 'chatRooms', selectedRoomId), {
-        lastMessage: content,
+        lastMessage: content || (mediaType === 'video' ? 'Sent a video' : 'Sent an image'),
         lastMessageAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `chatRooms/${selectedRoomId}/messages`, auth);
+    } finally {
+      setIsSubmitting(false);
+      setUploadProgress(0);
     }
   };
 
@@ -165,18 +300,54 @@ export function MessagesPage() {
           <h2 className="text-lg font-black uppercase text-white tracking-tighter italic">Secure Comms</h2>
           <button className="text-zinc-500 hover:text-white transition-colors"><Edit className="w-4 h-4" /></button>
         </div>
-        <div className="p-3 border-b border-[#222] bg-zinc-900/40">
+        <div className="p-3 border-b border-[#222] bg-zinc-900/40 relative">
           <div className="relative">
             <input 
               type="text" 
-              placeholder="Search conversations..." 
-              className="w-full bg-[#0a0a0a] border border-zinc-800 p-2 pl-8 text-xs text-white focus:outline-none focus:border-[#E31837] rounded transition-all"
+              placeholder="Search users..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-[#0a0a0a] border border-zinc-800 p-2 pl-8 pr-8 text-xs text-white focus:outline-none focus:border-[#E31837] rounded transition-all"
             />
             <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2.5" />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-2.5 text-zinc-500 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {loading ? (
+          {searchQuery ? (
+            <div className="p-2">
+              {isSearching ? (
+                <div className="text-center p-4 text-zinc-500 text-xs text-bold uppercase tracking-widest">Searching...</div>
+              ) : searchResults.length > 0 ? (
+                searchResults.map(user => (
+                  <div 
+                    key={user.id}
+                    onClick={() => handleStartChat(user.id)}
+                    className="p-3 mb-1 border border-transparent hover:border-zinc-800 rounded-lg cursor-pointer flex items-center gap-3 group transition-colors"
+                  >
+                    <img 
+                      src={user.profileImageUrl || `https://ui-avatars.com/api/?name=${user.displayName || 'Unknown'}&background=222&color=fff`} 
+                      alt="" 
+                      className="w-8 h-8 rounded-full border border-zinc-700" 
+                    />
+                    <div>
+                      <h3 className="font-bold text-sm text-white tracking-tight">{user.displayName}</h3>
+                      <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{user.role}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center p-4 text-zinc-500 text-xs">No users found for "{searchQuery}"</div>
+              )}
+            </div>
+          ) : loading ? (
              <div className="p-8 text-center animate-pulse">
                <div className="w-8 h-8 bg-zinc-800 rounded-full mx-auto mb-2"></div>
                <div className="h-2 w-20 bg-zinc-800 mx-auto rounded"></div>
@@ -207,7 +378,7 @@ export function MessagesPage() {
               </div>
             </div>
           ))}
-          {!loading && rooms.length === 0 && (
+          {!loading && !searchQuery && rooms.length === 0 && (
             <div className="p-8 text-center text-zinc-600">
                <p className="text-xs uppercase font-bold tracking-widest opacity-50">No comms found</p>
             </div>
@@ -275,6 +446,15 @@ export function MessagesPage() {
                           ? 'bg-[#E31837] text-white rounded-br-none shadow-[0_4px_15px_rgba(227,24,55,0.2)]' 
                           : 'bg-zinc-900 text-zinc-200 rounded-bl-none border border-white/5 shadow-xl'
                        }`}>
+                         {msg.mediaUrl && (
+                           <div className="mb-2 rounded-lg overflow-hidden border border-white/10 max-w-sm">
+                             {msg.mediaType === 'video' ? (
+                               <video src={msg.mediaUrl} controls className="w-full" />
+                             ) : (
+                               <img src={msg.mediaUrl} alt="" className="w-full object-cover" />
+                             )}
+                           </div>
+                         )}
                          {msg.content}
                        </div>
                        <div className={`mt-1 text-[9px] font-bold uppercase tracking-widest text-zinc-600 ${isMine ? 'text-right' : 'text-left'}`}>
@@ -289,20 +469,60 @@ export function MessagesPage() {
 
             {/* Message Input */}
             <form onSubmit={handleSendMessage} className="p-4 border-t border-[#222] bg-[#0a0a0a]">
-              <div className="relative">
+              {previewUrl && (
+                 <div className="mb-4 relative max-w-xs rounded-xl border border-white/10 overflow-hidden">
+                   {selectedFile?.type.startsWith('video') ? (
+                     <video src={previewUrl} className="w-full" controls />
+                   ) : (
+                     <img src={previewUrl} alt="Preview" className="w-full object-cover" />
+                   )}
+                   <button 
+                     type="button" 
+                     onClick={removeFile}
+                     className="absolute top-2 right-2 bg-black/80 rounded-full p-1 border border-white/10 text-white hover:text-[#E31837] hover:bg-black transition-all"
+                   >
+                     <X className="w-4 h-4"/>
+                   </button>
+                   {uploadProgress > 0 && uploadProgress < 100 && (
+                     <div className="absolute inset-x-0 bottom-0 h-1 bg-zinc-900">
+                       <div className="h-full bg-[#E31837]" style={{ width: `${uploadProgress}%` }}></div>
+                     </div>
+                   )}
+                 </div>
+              )}
+              <div className="relative flex items-center">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute left-2 p-2 text-zinc-500 hover:text-white transition-colors"
+                >
+                  <Paperclip className="w-5 h-5" />
+                </button>
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileSelect}
+                  className="hidden" 
+                  accept="image/*,video/*"
+                />
                 <input 
                   type="text" 
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Transmit message..." 
-                  className="w-full bg-[#050505] border border-zinc-800 p-3 pr-12 text-sm text-white focus:outline-none focus:border-[#E31837] rounded-xl transition-all"
+                  className="w-full bg-[#050505] border border-zinc-800 p-3 pl-12 pr-12 text-sm text-white focus:outline-none focus:border-[#E31837] rounded-xl transition-all disabled:opacity-50"
+                  disabled={isSubmitting}
                 />
                 <button 
                   type="submit"
-                  disabled={!newMessage.trim()}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-[#E31837] hover:text-white disabled:text-zinc-700 transition-colors"
+                  disabled={(!newMessage.trim() && !selectedFile) || isSubmitting}
+                  className="absolute right-2 p-2 text-[#E31837] hover:text-white disabled:text-zinc-700 transition-colors"
                 >
-                  <Send className="w-5 h-5" />
+                   {isSubmitting ? (
+                     <div className="w-5 h-5 border-2 border-[#E31837] border-t-transparent rounded-full animate-spin"></div>
+                   ) : (
+                     <Send className="w-5 h-5" />
+                   )}
                 </button>
               </div>
             </form>
