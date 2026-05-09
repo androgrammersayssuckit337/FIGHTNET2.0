@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { db, auth, storage } from '../../firebase';
@@ -19,7 +19,8 @@ import {
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { handleFirestoreError, OperationType } from '../../utils/error';
 import { formatDistanceToNow } from 'date-fns';
-import { Heart, MessageSquare, Share2, Trophy, MapPin, ExternalLink, Camera, Shield, Video } from 'lucide-react';
+import { Heart, MessageSquare, Share2, Trophy, MapPin, ExternalLink, Camera, Shield, Video, BarChart, Filter, ChevronRight, Activity, Zap } from 'lucide-react';
+import { motion } from 'motion/react';
 
 interface Post {
   id: string;
@@ -36,9 +37,39 @@ interface Post {
   authorGym?: string;
 }
 
+interface FighterStats {
+  wins: number;
+  losses: number;
+  draws: number;
+  winRatio: number;
+  totalFights: number;
+}
+
+interface FighterProfile {
+  id: string;
+  displayName: string;
+  role: 'fighter' | 'fan' | 'sponsor';
+  profileImageUrl: string;
+  record: string;
+  weightClass: string;
+  gym: string;
+  bio: string;
+  isPro: boolean;
+  stats: FighterStats;
+  highlights: Post[];
+}
+
 export function FeedPage() {
   const { currentUser, userProfile } = useAuth();
+  const [view, setView] = useState<'feed' | 'scout'>('feed');
   const [posts, setPosts] = useState<Post[]>([]);
+  const [fighters, setFighters] = useState<FighterProfile[]>([]);
+  const [isLoadingFighters, setIsLoadingFighters] = useState(false);
+  
+  // Scouting Filters
+  const [weightFilter, setWeightFilter] = useState('All');
+  const [minWinRatio, setMinWinRatio] = useState(0);
+  
   const [newPostContent, setNewPostContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -51,6 +82,80 @@ export function FeedPage() {
   const [showMentions, setShowMentions] = useState(false);
   const [mentionCursorPosition, setMentionCursorPosition] = useState(0);
   const [suggestedUsers, setSuggestedUsers] = useState<Array<{id: string, displayName: string, role: string, profileImageUrl?: string}>>([]);
+
+  const parseRecord = (record: string): FighterStats => {
+    if (!record) return { wins: 0, losses: 0, draws: 0, winRatio: 0, totalFights: 0 };
+    const parts = record.split('-').map(n => parseInt(n.trim()) || 0);
+    const wins = parts[0] || 0;
+    const losses = parts[1] || 0;
+    const draws = parts[2] || 0;
+    const total = wins + losses + draws;
+    const ratio = total > 0 ? (wins / total) * 100 : 0;
+    return { wins, losses, draws, winRatio: ratio, totalFights: total };
+  };
+
+  useEffect(() => {
+    if (view === 'scout') {
+      const fetchFighters = async () => {
+        setIsLoadingFighters(true);
+        try {
+          // Fetch all fighters
+          const fighterQuery = query(collection(db, 'users'), where('role', '==', 'fighter'));
+          const fighterSnap = await getDocs(fighterQuery);
+          
+          // Fetch all video posts to associate highlights
+          const videoQuery = query(
+            collection(db, 'posts'), 
+            where('mediaType', '==', 'video'),
+            where('status', '==', 'published')
+          );
+          const videoSnap = await getDocs(videoQuery);
+          const allVideos = videoSnap.docs.map(d => ({ id: d.id, ...d.data() } as Post));
+
+          const profiles = fighterSnap.docs.map(doc => {
+            const data = doc.data();
+            const stats = parseRecord(data.record || '');
+            const highlights = allVideos.filter(v => v.authorId === doc.id).slice(0, 3);
+            
+            return {
+              id: doc.id,
+              displayName: data.displayName,
+              role: data.role,
+              profileImageUrl: data.profileImageUrl,
+              record: data.record || '0-0-0',
+              weightClass: data.weightClass || 'TBD',
+              gym: data.gym || 'Private',
+              bio: data.bio || '',
+              isPro: data.isPro || false,
+              stats,
+              highlights
+            } as FighterProfile;
+          });
+
+          setFighters(profiles);
+        } catch (error) {
+          console.error("Scouting fetch failed:", error);
+        } finally {
+          setIsLoadingFighters(false);
+        }
+      };
+      fetchFighters();
+    }
+  }, [view]);
+
+  const filteredFighters = useMemo(() => {
+    return fighters.filter(f => {
+      const matchesWeight = weightFilter === 'All' || f.weightClass.includes(weightFilter);
+      const matchesRatio = f.stats.winRatio >= minWinRatio;
+      return matchesWeight && matchesRatio;
+    }).sort((a, b) => b.stats.winRatio - a.stats.winRatio);
+  }, [fighters, weightFilter, minWinRatio]);
+
+  const weightClasses = useMemo(() => {
+    const weights = new Set<string>();
+    fighters.forEach(f => { if (f.weightClass) weights.add(f.weightClass); });
+    return ['All', ...Array.from(weights)];
+  }, [fighters]);
 
   useEffect(() => {
     if (showMentions) {
@@ -319,19 +424,193 @@ export function FeedPage() {
     <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden bg-[#0a0a0a]">
       {/* Feed Section */}
       <section className="flex-1 border-r border-white/5 p-4 md:p-8 space-y-8 overflow-y-auto scrollbar-hide">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
              <div className="w-1.5 h-8 bg-[#E31837] italic shadow-[0_0_15px_rgba(227,24,55,0.5)]"></div>
-             <h2 className="text-3xl font-display uppercase italic text-white tracking-tighter">Pro-Circuit Feed</h2>
+             <h2 className="text-3xl font-display uppercase italic text-white tracking-tighter">Combat Control</h2>
           </div>
-          <div className="flex space-x-2">
-             <div className="px-3 py-1 bg-zinc-900 border border-white/5 text-[10px] font-black uppercase text-zinc-500 rounded-sm">Global</div>
-             <div className="px-3 py-1 bg-white text-black text-[10px] font-black uppercase rounded-sm">Hot</div>
+          
+          <div className="flex items-center bg-zinc-950 p-1 border border-white/5 rounded-xl shadow-lg">
+             <button 
+               onClick={() => setView('feed')}
+               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${view === 'feed' ? 'bg-[#E31837] text-white shadow-[0_0_20px_rgba(227,24,55,0.3)]' : 'text-zinc-500 hover:text-white'}`}
+             >
+               <Activity className="w-3.5 h-3.5" />
+               Live Feed
+             </button>
+             <button 
+               onClick={() => setView('scout')}
+               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${view === 'scout' ? 'bg-[#E31837] text-white shadow-[0_0_20px_rgba(227,24,55,0.3)]' : 'text-zinc-500 hover:text-white'}`}
+             >
+               <BarChart className="w-3.5 h-3.5" />
+               Scouting Matrix
+             </button>
           </div>
         </div>
 
-        {userProfile && (
-          <form onSubmit={handleCreatePost} className="bg-zinc-950 border border-white/10 rounded-xl p-6 shadow-2xl relative group overflow-hidden">
+        {view === 'scout' ?
+          <div className="space-y-8 animate-in fade-in duration-700">
+            {/* Filter Suite */}
+            <div className="flex flex-wrap items-center gap-6 p-6 bg-zinc-950 border border-white/5 rounded-2xl shadow-xl">
+               <div className="flex items-center gap-3">
+                  <Filter className="w-4 h-4 text-[#E31837]" />
+                  <span className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Weight Class</span>
+                  <select 
+                    value={weightFilter}
+                    onChange={(e) => setWeightFilter(e.target.value)}
+                    className="bg-black border border-white/10 rounded-lg px-3 py-1.5 text-[10px] font-black uppercase text-white focus:border-[#E31837] outline-none transition-all"
+                  >
+                    {weightClasses.map(w => <option key={w} value={w}>{w}</option>)}
+                  </select>
+               </div>
+
+               <div className="flex items-center gap-6 flex-1 min-w-[240px]">
+                  <BarChart className="w-4 h-4 text-[#E31837]" />
+                  <div className="flex-1 space-y-2">
+                     <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
+                        <span className="text-zinc-500">Min. Win Ratio</span>
+                        <span className="text-[#E31837]">{minWinRatio}%</span>
+                     </div>
+                     <input 
+                       type="range"
+                       min="0"
+                       max="100"
+                       step="5"
+                       value={minWinRatio}
+                       onChange={(e) => setMinWinRatio(parseInt(e.target.value))}
+                       className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-[#E31837]"
+                     />
+                  </div>
+               </div>
+            </div>
+
+            {/* Fighter Matrix Grid */}
+            <div className="grid grid-cols-1 gap-8">
+               {isLoadingFighters ? (
+                 <div className="p-24 flex flex-col items-center justify-center gap-4">
+                    <Zap className="w-8 h-8 text-[#E31837] animate-pulse" />
+                    <span className="text-[10px] font-black uppercase text-zinc-600 tracking-[0.3em]">Synchronizing Fighter Database...</span>
+                 </div>
+               ) : filteredFighters.length > 0 ? (
+                 filteredFighters.map((fighter, i) => (
+                   <motion.div 
+                     initial={{ opacity: 0, y: 20 }}
+                     animate={{ opacity: 1, y: 0 }}
+                     transition={{ delay: i * 0.1 }}
+                     key={fighter.id} 
+                     className="group relative bg-[#0c0c0c] border border-white/5 rounded-3xl overflow-hidden hover:border-[#E31837]/30 transition-all shadow-2xl"
+                   >
+                     <div className="flex flex-col xl:flex-row">
+                        {/* Profile Persona */}
+                        <div className="p-8 xl:w-80 border-b xl:border-b-0 xl:border-r border-white/5 bg-zinc-950/50">
+                           <div className="flex items-center gap-4 mb-6">
+                              <Link to={`/app/profile/${fighter.id}`} className="relative shrink-0 hover:scale-105 transition-transform duration-300">
+                                 <img src={fighter.profileImageUrl || `https://ui-avatars.com/api/?name=${fighter.displayName}&background=000&color=fff`} className="w-16 h-16 rounded-2xl object-cover border border-white/10" alt="" />
+                                 {fighter.isPro && (
+                                   <div className="absolute -top-2 -right-2 bg-[#E31837] text-white p-1 rounded-lg shadow-lg border border-white/10 z-10">
+                                      <Zap className="w-3 h-3 fill-white" />
+                                   </div>
+                                 )}
+                              </Link>
+                              <div>
+                                 <Link to={`/app/profile/${fighter.id}`} className="hover:text-[#E31837] transition-colors">
+                                    <h3 className="text-lg font-black italic text-white uppercase tracking-tighter leading-tight">{fighter.displayName}</h3>
+                                 </Link>
+                                 <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">{fighter.weightClass}</span>
+                                    <span className="w-1 h-1 rounded-full bg-zinc-800"></span>
+                                    <span className="text-[9px] font-black uppercase text-[#E31837] tracking-widest">{fighter.record}</span>
+                                 </div>
+                              </div>
+                           </div>
+
+                           <div className="space-y-4">
+                              <div className="space-y-1.5">
+                                 <div className="flex justify-between text-[9px] font-black uppercase tracking-widest">
+                                    <span className="text-zinc-600">Win Probability</span>
+                                    <span className="text-white">{Math.round(fighter.stats.winRatio)}%</span>
+                                 </div>
+                                 <div className="w-full h-1 bg-zinc-900 rounded-full overflow-hidden">
+                                    <div 
+                                      className="h-full bg-gradient-to-r from-red-600 to-[#E31837] shadow-[0_0_10px_#E31837]" 
+                                      style={{ width: `${fighter.stats.winRatio}%` }}
+                                    ></div>
+                                 </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3 mt-6">
+                                 <div className="bg-black border border-white/5 p-3 rounded-xl">
+                                    <p className="text-[8px] text-zinc-500 font-black uppercase tracking-[0.2em] mb-1">Affiliation</p>
+                                    <p className="text-[10px] font-black text-white uppercase truncate">{fighter.gym}</p>
+                                 </div>
+                                 <div className="bg-black border border-white/5 p-3 rounded-xl">
+                                    <p className="text-[8px] text-zinc-500 font-black uppercase tracking-[0.2em] mb-1">Total Fights</p>
+                                    <p className="text-[10px] font-black text-white uppercase">{fighter.stats.totalFights}</p>
+                                 </div>
+                              </div>
+                           </div>
+                           
+                           <Link to={`/app/profile/${fighter.id}`} className="mt-8 flex items-center justify-between w-full p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white transition-all group/link">
+                              View Intelligence
+                              <ChevronRight className="w-4 h-4 group-hover/link:translate-x-1 transition-transform" />
+                           </Link>
+                        </div>
+
+                        {/* Highlight Matrix */}
+                        <div className="flex-1 p-8">
+                           <div className="flex items-center gap-2 mb-6">
+                              <Video className="w-4 h-4 text-[#E31837]" />
+                              <h4 className="text-[10px] font-black uppercase text-zinc-400 tracking-[0.3em]">Combat Reel / Highlights</h4>
+                           </div>
+                           
+                           <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+                              {fighter.highlights.length > 0 ? fighter.highlights.map(vid => (
+                                 <div key={vid.id} className="min-w-[280px] group/vid relative aspect-video rounded-2xl overflow-hidden border border-white/5 shadow-xl">
+                                    <video 
+                                      src={vid.mediaUrl} 
+                                      className="w-full h-full object-cover"
+                                      muted
+                                      onMouseOver={(e) => e.currentTarget.play()}
+                                      onMouseOut={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-4">
+                                       <p className="text-[10px] font-bold text-white uppercase tracking-tight line-clamp-2">{vid.content}</p>
+                                       <div className="mt-2 flex items-center justify-between">
+                                          <div className="flex items-center gap-3">
+                                             <div className="flex items-center gap-1 text-[#E31837]">
+                                                <Heart className="w-3 h-3 fill-[#E31837]" />
+                                                <span className="text-[9px] font-black">{vid.likesCount}</span>
+                                             </div>
+                                          </div>
+                                          <span className="text-[8px] text-zinc-500 font-bold uppercase">{formatDistanceToNow(vid.createdAt)} ago</span>
+                                       </div>
+                                    </div>
+                                 </div>
+                              )) : (
+                                 <div className="w-full py-12 flex flex-col items-center justify-center border border-dashed border-white/5 rounded-2xl opacity-40">
+                                    <Shield className="w-8 h-8 mb-3" />
+                                    <p className="text-[10px] font-black uppercase tracking-widest">No verified tapes found</p>
+                                 </div>
+                              )}
+                           </div>
+                        </div>
+                     </div>
+                   </motion.div>
+                 ))
+               ) : (
+                 <div className="p-32 text-center bg-zinc-950 border border-white/5 rounded-3xl">
+                    <Filter className="w-12 h-12 text-zinc-800 mx-auto mb-4" />
+                    <h3 className="text-xl font-black italic uppercase text-white tracking-tighter mb-2">No Matching Prospects</h3>
+                    <p className="text-xs text-zinc-600 font-bold uppercase tracking-widest">Adjust your matrix filters to broaden the search.</p>
+                 </div>
+               )}
+            </div>
+          </div>
+        : (
+          <div className="flex flex-col gap-12">
+            <div className="space-y-12">
+              {userProfile && (
+                <form onSubmit={handleCreatePost} className="bg-zinc-950 border border-white/10 rounded-xl p-6 shadow-2xl relative group overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-[#E31837]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <div className="flex gap-5 relative z-10">
               <img src={userProfile.profileImageUrl || `https://ui-avatars.com/api/?name=${userProfile.displayName}&background=111&color=fff`} alt="" className="w-10 h-10 rounded-full border border-white/10 object-cover" />
@@ -593,7 +872,10 @@ export function FeedPage() {
             <p className="text-sm font-black italic mt-2 text-white uppercase tracking-tight">Marcus 'Apex' Chen signs with Agent X Pro</p>
           </div>
         </div>
-      </section>
+      </div>
+    </div>
+    )}
+  </section>
 
       {/* Side Profile/Navigator - Desktop only */}
       <aside className="w-80 flex-col p-8 space-y-10 bg-[#0c0c0c] hidden lg:flex shrink-0 overflow-y-auto border-l border-white/5 scrollbar-hide">

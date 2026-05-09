@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Star, Zap, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Star, Zap, Clock, CheckCircle2, XCircle, Filter, ArrowUpDown, Search, Target, TrendingUp } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { db, auth } from '../../firebase';
 import { 
@@ -22,10 +22,78 @@ interface Sponsorship {
   createdAt: number;
 }
 
-const MOCK_SPONSORS = [
-  { id: '1', name: 'IRON PEAK Performance', match: 98, img: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=300&q=80', req: '7-0 Record minimum' },
-  { id: '2', name: 'VTX Supplements', match: 92, img: 'https://images.unsplash.com/photo-1594882645126-14020914d58d?w=300&q=80', req: 'Heavyweight / LHW' },
-  { id: '3', name: 'Grind Athletics', match: 85, img: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=300&q=80', req: 'Strong social presence' }
+interface Sponsor {
+  id: string;
+  name: string;
+  match: number;
+  img: string;
+  req: string;
+  industry: string;
+  preferredFighterType: string;
+  engagement: number;
+}
+
+const MOCK_SPONSORS: Sponsor[] = [
+  { 
+    id: '1', 
+    name: 'IRON PEAK Performance', 
+    match: 98, 
+    img: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=300&q=80', 
+    req: '7-0 Record minimum',
+    industry: 'Fitness',
+    preferredFighterType: 'Striker',
+    engagement: 95
+  },
+  { 
+    id: '2', 
+    name: 'VTX Supplements', 
+    match: 92, 
+    img: 'https://images.unsplash.com/photo-1594882645126-14020914d58d?w=300&q=80', 
+    req: 'Heavyweight / LHW',
+    industry: 'Nutrition',
+    preferredFighterType: 'Veteran',
+    engagement: 88
+  },
+  { 
+    id: '3', 
+    name: 'Grind Athletics', 
+    match: 85, 
+    img: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=300&q=80', 
+    req: 'Strong social presence',
+    industry: 'Apparel',
+    preferredFighterType: 'All-around',
+    engagement: 91
+  },
+  { 
+    id: '4', 
+    name: 'CyberPunch Energy', 
+    match: 78, 
+    img: 'https://images.unsplash.com/photo-1550029402-226115b7c579?w=300&q=80', 
+    req: 'Aggressive finishing style',
+    industry: 'Energy',
+    preferredFighterType: 'Prospect',
+    engagement: 74
+  },
+  { 
+    id: '5', 
+    name: 'Apex Nutrition', 
+    match: 82, 
+    img: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=300&q=80', 
+    req: 'Clean public image',
+    industry: 'Nutrition',
+    preferredFighterType: 'Grappler',
+    engagement: 85
+  },
+  { 
+    id: '6', 
+    name: 'Stealth Gear', 
+    match: 89, 
+    img: 'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?w=300&q=80', 
+    req: 'Technical proficiency',
+    industry: 'Apparel',
+    preferredFighterType: 'Veteran',
+    engagement: 90
+  }
 ];
 
 export function SponsorsPage() {
@@ -33,6 +101,30 @@ export function SponsorsPage() {
   const [applyingTo, setApplyingTo] = useState<string | null>(null);
   const [pitch, setPitch] = useState('');
   const [applications, setApplications] = useState<Sponsorship[]>([]);
+
+  // Filtering and Sorting state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [industryFilter, setIndustryFilter] = useState('All');
+  const [typeFilter, setTypeFilter] = useState('All');
+  const [sortBy, setSortBy] = useState<'match' | 'engagement' | 'name'>('match');
+
+  const industries = ['All', ...Array.from(new Set(MOCK_SPONSORS.map(s => s.industry)))];
+  const fighterTypes = ['All', ...Array.from(new Set(MOCK_SPONSORS.map(s => s.preferredFighterType)))];
+
+  const filteredSponsors = useMemo(() => {
+    return MOCK_SPONSORS
+      .filter(s => {
+        const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesIndustry = industryFilter === 'All' || s.industry === industryFilter;
+        const matchesType = typeFilter === 'All' || s.preferredFighterType === typeFilter;
+        return matchesSearch && matchesIndustry && matchesType;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'match') return b.match - a.match;
+        if (sortBy === 'engagement') return b.engagement - a.engagement;
+        return a.name.localeCompare(b.name);
+      });
+  }, [searchTerm, industryFilter, typeFilter, sortBy]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -92,9 +184,58 @@ export function SponsorsPage() {
   return (
     <div className="p-4 md:p-8 space-y-8 min-h-full bg-[#0a0a0a]">
       <header className="mb-8 border-b border-white/5 pb-4">
-        <h1 className="text-2xl font-black uppercase text-white tracking-tighter italic mb-1 uppercase tracking-tighter">Sponsor Advocate</h1>
+        <h1 className="text-2xl font-black uppercase text-white tracking-tighter italic mb-1">Sponsor Advocate</h1>
         <p className="text-zinc-500 uppercase tracking-widest text-[10px] font-bold">Connect with brands that believe in you</p>
       </header>
+
+      {/* Filter Matrix */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-zinc-950 border border-white/5 rounded-2xl shadow-xl">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+          <input 
+            type="text" 
+            placeholder="Search Brands..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-[#050505] border border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white focus:border-[#E31837] outline-none transition-all"
+          />
+        </div>
+        
+        <div className="flex items-center gap-2 group">
+          <Filter className="w-3.5 h-3.5 text-[#E31837]" />
+          <select 
+            value={industryFilter}
+            onChange={(e) => setIndustryFilter(e.target.value)}
+            className="flex-1 bg-[#050505] border border-white/10 rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white focus:border-[#E31837] outline-none transition-all appearance-none cursor-pointer"
+          >
+            {industries.map(ind => <option key={ind} value={ind}>{ind} INDUSTRY</option>)}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Target className="w-3.5 h-3.5 text-[#E31837]" />
+          <select 
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="flex-1 bg-[#050505] border border-white/10 rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white focus:border-[#E31837] outline-none transition-all appearance-none cursor-pointer"
+          >
+            {fighterTypes.map(ft => <option key={ft} value={ft}>{ft} PREFERRED</option>)}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <ArrowUpDown className="w-3.5 h-3.5 text-[#E31837]" />
+          <select 
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as 'match' | 'engagement' | 'name')}
+            className="flex-1 bg-[#050505] border border-white/10 rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white focus:border-[#E31837] outline-none transition-all appearance-none cursor-pointer"
+          >
+            <option value="match">Match Percentage</option>
+            <option value="engagement">Engagement Score</option>
+            <option value="name">Brand Name</option>
+          </select>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 bg-zinc-900/50 border border-white/5 p-6 rounded-2xl shadow-2xl">
@@ -104,17 +245,27 @@ export function SponsorsPage() {
           </h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {MOCK_SPONSORS.map(sponsor => (
+            {filteredSponsors.length > 0 ? filteredSponsors.map(sponsor => (
               <div key={sponsor.id} className="bg-[#050505] border border-white/5 flex flex-col group relative overflow-hidden rounded-xl hover:border-[#E31837]/30 transition-all duration-500">
                 <div className="h-40 bg-cover bg-center opacity-40 group-hover:opacity-60 transition-opacity grayscale group-hover:grayscale-0 scale-105 group-hover:scale-100 transition-transform duration-700" style={{ backgroundImage: `url(${sponsor.img})` }}></div>
                 <div className="p-5 flex-1 flex flex-col z-10 border-t border-white/5">
                   <div className="flex justify-between items-start mb-2">
                     <h3 className="font-black text-sm tracking-tight uppercase max-w-[70%] leading-tight text-white italic">{sponsor.name}</h3>
-                    <div className="bg-[#E31837]/20 text-[#E31837] text-[10px] px-2.5 py-0.5 font-black rounded italic">
-                      {sponsor.match}% FIT
+                    <div className="flex flex-col items-end gap-1">
+                      <div className="bg-[#E31837]/20 text-[#E31837] text-[10px] px-2.5 py-0.5 font-black rounded italic">
+                        {sponsor.match}% FIT
+                      </div>
+                      <div className="flex items-center gap-1 text-[8px] text-zinc-500 font-bold uppercase tracking-tighter">
+                        <TrendingUp className="w-2.5 h-2.5" />
+                        {sponsor.engagement} Engagement
+                      </div>
                     </div>
                   </div>
-                  <p className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold mb-6">{sponsor.req}</p>
+                  <div className="flex gap-2 mb-4">
+                    <span className="text-[8px] bg-zinc-900 text-zinc-400 px-2 py-0.5 rounded border border-white/5 font-black uppercase tracking-widest">{sponsor.industry}</span>
+                    <span className="text-[8px] bg-zinc-900 text-zinc-400 px-2 py-0.5 rounded border border-white/5 font-black uppercase tracking-widest">{sponsor.preferredFighterType}</span>
+                  </div>
+                  <p className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold mb-6 line-clamp-2 min-h-[30px]">{sponsor.req}</p>
                   
                   <div className="mt-auto">
                     {applyingTo === sponsor.id ? (
@@ -148,7 +299,12 @@ export function SponsorsPage() {
                   </div>
                 </div>
               </div>
-            ))}
+            )) : (
+              <div className="col-span-2 py-24 text-center">
+                 <Search className="w-10 h-10 text-zinc-800 mx-auto mb-4" />
+                 <p className="text-xs font-black uppercase text-zinc-600 tracking-widest italic">No brands found matching your matrix filters.</p>
+              </div>
+            )}
           </div>
         </div>
 

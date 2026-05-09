@@ -44,7 +44,7 @@ export function AppLayout() {
       <aside className="w-full md:w-64 flex flex-col border-b md:border-b-0 md:border-r border-[#222] bg-[#0a0a0a] z-40 order-2 md:order-1 shrink-0 pb-safe md:pb-0">
         <div className="hidden md:block p-6 border-b border-[#222]">
           <Logo size="lg" className="mb-2" />
-          <p className="text-xs uppercase tracking-[0.2em] text-zinc-600 font-bold font-display italic">The Combat Network</p>
+          <p className="text-sm uppercase tracking-[0.2em] text-zinc-600 font-bold font-display italic">The Combat Network</p>
         </div>
         
         <nav className="flex-1 py-4 space-y-1 overflow-y-auto hidden md:block">
