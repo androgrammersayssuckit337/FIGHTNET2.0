@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { ShoppingCart, Plus, Edit2, Trash2, Save, X, Camera, Loader2, Package, Tag, DollarSign } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
 import { db, auth, storage } from '../../firebase';
 import { 
   collection, 
@@ -75,7 +74,11 @@ export function StorePage() {
     const fileName = `products/${auth.currentUser.uid}_${Date.now()}.${fileExt}`;
     const storageRef = ref(storage, fileName);
     
-    const uploadTask = uploadBytesResumable(storageRef, file);
+    const metadata = {
+      contentType: file.type,
+    };
+
+    const uploadTask = uploadBytesResumable(storageRef, file, metadata);
 
     uploadTask.on('state_changed', 
       (snapshot) => {

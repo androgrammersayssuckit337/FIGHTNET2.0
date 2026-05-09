@@ -198,8 +198,8 @@ export function FeedPage() {
         try {
           const q = query(collection(db, 'users'));
           const snapshot = await getDocs(q);
-          const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          const filtered = users.filter((u: any) => 
+          const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as { id: string, displayName?: string }));
+          const filtered = users.filter((u) => 
             typeof u.displayName === 'string' && u.displayName.toLowerCase().includes(mentionQuery.toLowerCase())
           ).slice(0, 5);
           setSuggestedUsers(filtered as Array<{id: string, displayName: string, role: string, profileImageUrl?: string}>);
@@ -272,26 +272,37 @@ export function FeedPage() {
 
   const handleFileUpload = async (file: File) => {
     if (!currentUser) throw new Error('Not authenticated');
+    
+    // Explicit size check before starting
+    const MAX_SIZE = 50 * 1024 * 1024; // 50MB
+    if (file.size > MAX_SIZE) {
+      throw new Error('FILE_TOO_LARGE');
+    }
+
     setIsSubmitting(true);
     
     const fileExt = file.name.split('.').pop();
     const fileName = `posts/${currentUser.uid}/${Date.now()}.${fileExt}`;
     const storageRef = ref(storage, fileName);
     
-    console.log("Starting upload to:", fileName);
-    const uploadTask = uploadBytesResumable(storageRef, file);
+    // Set metadata to ensure correct MIME type
+    const metadata = {
+      contentType: file.type,
+    };
+    
+    console.log("Starting upload to:", fileName, "Type:", file.type);
+    const uploadTask = uploadBytesResumable(storageRef, file, metadata);
 
     return new Promise<string>((resolve, reject) => {
       uploadTask.on('state_changed', 
         (snapshot) => {
           const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
           setUploadProgress(progress);
-          console.log(`Upload progress: ${progress}%`);
         }, 
         (error) => {
           console.error("Firebase Storage Upload Error:", error);
           const msg = error.code === 'storage/unauthorized' 
-            ? "File too large (Max 50MB) or incorrect type." 
+            ? "Permission denied. Check authentication." 
             : error.message;
           alert(`Upload failed: ${msg}`);
           reject(error);
@@ -299,7 +310,6 @@ export function FeedPage() {
         async () => {
           try {
             const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            console.log("File available at:", downloadURL);
             resolve(downloadURL);
           } catch (err) {
             console.error("Error getting download URL:", err);
@@ -313,7 +323,6 @@ export function FeedPage() {
   const handleQuickVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && currentUser) {
-      setIsSubmitting(true);
       try {
         const mediaUrl = await handleFileUpload(file);
         await addDoc(collection(db, 'posts'), {
@@ -327,8 +336,12 @@ export function FeedPage() {
         });
         setUploadProgress(0);
         if (quickVideoInputRef.current) quickVideoInputRef.current.value = '';
-      } catch (error) {
-        handleFirestoreError(error, OperationType.CREATE, 'posts', auth);
+      } catch (error: unknown) {
+        if ((error as Error).message === 'FILE_TOO_LARGE') {
+          alert('Transmission failed: File exceeds 50MB limit.');
+        } else {
+          handleFirestoreError(error, OperationType.CREATE, 'posts', auth);
+        }
       } finally {
         setIsSubmitting(false);
       }
@@ -397,8 +410,12 @@ export function FeedPage() {
       setPreviewUrl(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       setUploadProgress(0);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'posts', auth);
+    } catch (error: unknown) {
+      if ((error as Error).message === 'FILE_TOO_LARGE') {
+        alert('Transmission failed: File exceeds 50MB limit.');
+      } else {
+        handleFirestoreError(error, OperationType.CREATE, 'posts', auth);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -1037,11 +1054,11 @@ function CommentSection({ postId }: { postId: string }) {
         try {
           const q = query(collection(db, 'users'));
           const snapshot = await getDocs(q);
-          const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          const filtered = users.filter((u: any) => 
+          const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as { id: string, displayName?: string }));
+          const filtered = users.filter((u) => 
             typeof u.displayName === 'string' && u.displayName.toLowerCase().includes(mentionQuery.toLowerCase())
           ).slice(0, 5);
-          setSuggestedUsers(filtered as any);
+          setSuggestedUsers(filtered as Array<{id: string, displayName: string, role: string, profileImageUrl?: string}>);
         } catch (error) {
           console.error("Error fetching mentions", error);
         }

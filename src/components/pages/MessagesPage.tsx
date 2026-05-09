@@ -224,12 +224,22 @@ export function MessagesPage() {
   const handleFileUpload = async (file: File): Promise<string> => {
     if (!currentUser) throw new Error("No user");
     
+    // Explicit size check
+    const MAX_SIZE = 50 * 1024 * 1024; // 50MB
+    if (file.size > MAX_SIZE) {
+      throw new Error('FILE_TOO_LARGE');
+    }
+
     return new Promise((resolve, reject) => {
       const fileExt = file.name.split('.').pop();
       const fileName = `chatMedia/${currentUser.uid}/${selectedRoomId}/${Date.now()}.${fileExt}`;
       const storageRef = ref(storage, fileName);
       
-      const uploadTask = uploadBytesResumable(storageRef, file);
+      const metadata = {
+        contentType: file.type,
+      };
+
+      const uploadTask = uploadBytesResumable(storageRef, file, metadata);
 
       uploadTask.on('state_changed', 
         (snapshot) => {
@@ -238,6 +248,7 @@ export function MessagesPage() {
         }, 
         (error) => {
           console.error("Upload failed", error);
+          alert(`Upload failed: ${error.message}`);
           reject(error);
         }, 
         async () => {
@@ -256,10 +267,6 @@ export function MessagesPage() {
     const content = newMessage.trim();
     const currentSelectedFile = selectedFile;
     
-    setNewMessage('');
-    removeFile();
-    setUploadProgress(0);
-
     try {
       let mediaUrl = '';
       if (currentSelectedFile) {
@@ -267,6 +274,11 @@ export function MessagesPage() {
       }
 
       const mediaType = currentSelectedFile ? (currentSelectedFile.type.startsWith('video') ? 'video' : 'image') : '';
+
+      // Reset UI state after successful upload (or if no file)
+      setNewMessage('');
+      removeFile();
+      setUploadProgress(0);
 
       // Add message
       await addDoc(collection(db, 'chatRooms', selectedRoomId, 'messages'), {
@@ -282,8 +294,12 @@ export function MessagesPage() {
         lastMessageAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `chatRooms/${selectedRoomId}/messages`, auth);
+    } catch (error: unknown) {
+      if ((error as Error).message === 'FILE_TOO_LARGE') {
+        alert('Transmission failed: File exceeds 50MB limit.');
+      } else {
+        handleFirestoreError(error, OperationType.CREATE, `chatRooms/${selectedRoomId}/messages`, auth);
+      }
     } finally {
       setIsSubmitting(false);
       setUploadProgress(0);

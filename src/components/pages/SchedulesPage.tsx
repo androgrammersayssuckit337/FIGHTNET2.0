@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, MapPin, Ticket, X, Activity, Trophy, Clock, Zap } from 'lucide-react';
 import { Map, Marker, InfoWindow, useMap } from '@vis.gl/react-google-maps';
 import { motion, AnimatePresence } from 'motion/react';
-import { db } from '../../firebase';
+import { db, auth } from '../../firebase';
 import { collection, query, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../../utils/error';
 
@@ -75,7 +75,7 @@ export function SchedulesPage() {
   const map = useMap();
   const googleMapsKey = 
     process.env.GOOGLE_MAPS_PLATFORM_KEY || 
-    (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY || 
+    (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string) || 
     '';
   const isMapsConfigured = Boolean(googleMapsKey);
 
@@ -102,11 +102,11 @@ export function SchedulesPage() {
           });
         }
 
-        setFights(fightData.sort((a, b) => b.status === 'live' ? 1 : -1));
+        setFights(fightData.sort((_, b) => b.status === 'live' ? 1 : -1));
         setIsLoading(false);
       },
       (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'schedules');
+        handleFirestoreError(error, OperationType.LIST, 'schedules', auth);
         setIsLoading(false);
       }
     );
@@ -141,7 +141,7 @@ export function SchedulesPage() {
         lng: '-115.1398'
       });
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'schedules');
+      handleFirestoreError(error, OperationType.CREATE, 'schedules', auth);
     }
   };
 

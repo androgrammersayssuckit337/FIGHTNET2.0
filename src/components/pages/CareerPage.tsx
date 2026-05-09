@@ -13,7 +13,6 @@ export function CareerPage() {
   const { userProfile: currentUserProfile } = useAuth();
   const { userId } = useParams<{ userId?: string }>();
   const navigate = useNavigate();
-  const [profile, setProfile] = useState(currentUserProfile);
   const [isExternal, setIsExternal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
@@ -50,7 +49,6 @@ export function CareerPage() {
           const userDoc = await getDoc(doc(db, 'users', userId));
           if (userDoc.exists()) {
             const data = userDoc.data();
-            setProfile(data as any);
             setFormData({
               displayName: data.displayName || '',
               bio: data.bio || '',
@@ -75,7 +73,6 @@ export function CareerPage() {
         }
       } else {
         setIsExternal(false);
-        setProfile(currentUserProfile);
         if (currentUserProfile) {
           setFormData({
             displayName: currentUserProfile.displayName || '',
@@ -114,7 +111,11 @@ export function CareerPage() {
     const fileName = `${type}s/${auth.currentUser.uid}_${Date.now()}.${fileExt}`;
     const storageRef = ref(storage, fileName);
     
-    const uploadTask = uploadBytesResumable(storageRef, file);
+    const metadata = {
+      contentType: file.type,
+    };
+
+    const uploadTask = uploadBytesResumable(storageRef, file, metadata);
 
     uploadTask.on('state_changed', 
       (snapshot) => {
