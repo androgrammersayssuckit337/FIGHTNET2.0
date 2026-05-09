@@ -19,19 +19,19 @@ export function LandingPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleGoogleLogin = async (role: UserRole = 'fan') => {
-    setIsLoggingIn(true);
     setErrorMsg(null);
     try {
+      // Don't set state before the call to minimize chance of popup being blocked by some browsers
       await loginWithGoogle(role);
     } catch (error: unknown) {
-      if (error instanceof Error && error.message === 'LOGIN_CANCELLED') {
+      if (error instanceof Error && error.message === 'POPUP_BLOCKED') {
+        setErrorMsg('Pop-up blocked. Please allow pop-ups for this site and try again.');
+      } else if (error instanceof Error && error.message === 'LOGIN_CANCELLED') {
         setErrorMsg('Login cancelled. Please try again.');
       } else {
-        setErrorMsg('Authentication failed. Please check your connection.');
+        setErrorMsg('Authentication failed. Please try again.');
         console.error(error);
       }
-    } finally {
-      setIsLoggingIn(false);
     }
   };
 

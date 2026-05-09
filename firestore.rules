@@ -159,6 +159,42 @@ service cloud.firestore {
              (data.createdAt is timestamp || data.createdAt == request.time);
     }
 
+    function isValidFightSchedule(data) {
+      return data.keys().hasAll(['event', 'location', 'date', 'time', 'status', 'createdAt']) &&
+             data.event is string && data.event.size() >= 1 && data.event.size() <= 200 &&
+             data.location is string && data.location.size() >= 1 && data.location.size() <= 200 &&
+             data.date is string && data.date.size() >= 1 && data.date.size() <= 10 &&
+             data.time is string && data.time.size() >= 1 && data.time.size() <= 50 &&
+             data.status in ['upcoming', 'live', 'finished'] &&
+             (data.createdAt is timestamp || data.createdAt == request.time);
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['ownerId', 'name', 'price', 'stock', 'createdAt']) &&
+             data.ownerId == request.auth.uid &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
+             data.price is number && data.price >= 0 &&
+             data.stock is number && data.stock >= 0 &&
+             (data.get('description', '') is string && data.get('description', '').size() <= 2000) &&
+             (data.get('imageUrl', '') is string && data.get('imageUrl', '').size() <= 2048) &&
+             (data.get('tag', '') is string && data.get('tag', '').size() <= 50) &&
+             (data.createdAt is timestamp || data.createdAt == request.time);
+    }
+
+    match /products/{productId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(productId) && isValidProduct(incoming());
+      allow update: if isOwner(existing().ownerId) && isValidProduct(incoming()) &&
+                    incoming().ownerId == existing().ownerId;
+      allow delete: if isOwner(existing().ownerId);
+    }
+
+    match /schedules/{fightId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(fightId) && isValidFightSchedule(incoming());
+      allow update: if isSignedIn() && isValidFightSchedule(incoming());
+    }
+
     match /chatRooms/{roomId} {
       allow get: if isParticipant(resource.data.participantIds);
       allow list: if isSignedIn() && (request.auth.uid in resource.data.participantIds);

@@ -169,10 +169,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await signInWithPopup(auth, provider);
       await ensureProfile(result.user, role);
     } catch (error: unknown) {
-      if (error instanceof Error && (error as unknown as { code: string }).code === 'auth/popup-closed-by-user') {
-        const err = new Error('LOGIN_CANCELLED') as Error & { cause: unknown };
-        err.cause = error;
-        throw err;
+      const err = error as { code?: string };
+      if (err.code === 'auth/popup-closed-by-user') {
+        const loginErr = new Error('LOGIN_CANCELLED') as Error & { cause: unknown };
+        loginErr.cause = error;
+        throw loginErr;
+      }
+      if (err.code === 'auth/popup-blocked') {
+        const popupErr = new Error('POPUP_BLOCKED') as Error & { cause: unknown };
+        popupErr.cause = error;
+        throw popupErr;
       }
       console.error("Login failed:", error);
       throw error;

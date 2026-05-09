@@ -1,52 +1,67 @@
-import React, { useState } from 'react';
-import { Calendar, MapPin, Ticket, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Calendar, MapPin, Ticket, X, Activity, Trophy, Clock, Zap } from 'lucide-react';
 import { Map, Marker, InfoWindow, useMap } from '@vis.gl/react-google-maps';
 import { motion, AnimatePresence } from 'motion/react';
+import { db } from '../../firebase';
+import { collection, query, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../../utils/error';
 
 interface Fight {
-  id: number;
+  id: string;
   event: string;
   location: string;
   date: string;
   time: string;
   mainCard: string[];
   position: { lat: number; lng: number };
+  status: 'upcoming' | 'live' | 'finished';
+  liveScores?: Array<{
+    bout: string;
+    score: string;
+    round: string;
+    status: string;
+  }>;
 }
 
-const UPCOMING_FIGHTS: Fight[] = [
+const INITIAL_FIGHTS = [
   { 
-    id: 1, 
     event: 'UFC 305: Pantoja vs Erceg', 
     location: 'Perth, Australia', 
     date: '05.04', 
     time: '10:00 PM EST', 
     mainCard: ['Pantoja vs Erceg', 'Martinez vs Aldo'],
-    position: { lat: -31.9505, lng: 115.8605 }
+    position: { lat: -31.9505, lng: 115.8605 },
+    status: 'finished' as const
   },
   { 
-    id: 2, 
     event: 'PFL 4: Regular Season', 
     location: 'Uncasville, CT', 
     date: '06.13', 
     time: '6:30 PM EST', 
     mainCard: ['Wilkinson vs Gouti', 'Collard vs Madge'],
-    position: { lat: 41.4884, lng: -72.0863 }
+    position: { lat: 41.4884, lng: -72.0863 },
+    status: 'live' as const,
+    liveScores: [
+      { bout: 'Wilkinson vs Gouti', score: '29-28, 29-28, 30-27', round: 'End of R3', status: 'Decision' },
+      { bout: 'Collard vs Madge', score: '10-9', round: 'R2 2:45', status: 'Live' }
+    ]
   },
   { 
-    id: 3, 
     event: 'Bellator Champions Series', 
     location: 'Dublin, Ireland', 
     date: '06.22', 
     time: '1:00 PM EST', 
     mainCard: ['Eblen vs Edwards', 'Karakhanyan vs Burnell'],
-    position: { lat: 53.3498, lng: -6.2603 }
+    position: { lat: 53.3498, lng: -6.2603 },
+    status: 'upcoming' as const
   },
 ];
 
 export function SchedulesPage() {
-  const [fights, setFights] = useState<Fight[]>(UPCOMING_FIGHTS);
+  const [fights, setFights] = useState<Fight[]>([]);
   const [selectedFight, setSelectedFight] = useState<Fight | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [formData, setFormData] = useState({
     event: '',
     location: '',
@@ -60,31 +75,70 @@ export function SchedulesPage() {
   const map = useMap();
   const isMapsConfigured = import.meta.env.VITE_GOOGLE_MAPS_API_KEY && import.meta.env.VITE_GOOGLE_MAPS_API_KEY !== "";
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newFight: Fight = {
-      id: fights.length + 1,
-      event: formData.event,
-      location: formData.location,
-      date: formData.date,
-      time: formData.time,
-      mainCard: formData.mainCard.split(',').map(bout => bout.trim()).filter(Boolean),
-      position: { 
-        lat: parseFloat(formData.lat) || 0, 
-        lng: parseFloat(formData.lng) || 0 
+  useEffect(() => {
+    const q = query(collection(db, 'schedules'));
+    const unsubscribe = onSnapshot(q, 
+      (snapshot) => {
+        const fightData: Fight[] = [];
+        snapshot.forEach((doc) => {
+          fightData.push({ id: doc.id, ...doc.data() } as Fight);
+        });
+        
+        // If empty, seed initial data for demo
+        if (fightData.length === 0 && isLoading) {
+          INITIAL_FIGHTS.forEach(async (f) => {
+            try {
+              await addDoc(collection(db, 'schedules'), {
+                ...f,
+                createdAt: serverTimestamp()
+              });
+            } catch (err) {
+              console.error("Seeding failed:", err);
+            }
+          });
+        }
+
+        setFights(fightData.sort((a, b) => b.status === 'live' ? 1 : -1));
+        setIsLoading(false);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'schedules');
+        setIsLoading(false);
       }
-    };
-    setFights([...fights, newFight]);
-    setIsFormOpen(false);
-    setFormData({
-      event: '',
-      location: '',
-      date: '',
-      time: '',
-      mainCard: '',
-      lat: '36.1699',
-      lng: '-115.1398'
-    });
+    );
+
+    return () => unsubscribe();
+  }, [isLoading]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await addDoc(collection(db, 'schedules'), {
+        event: formData.event,
+        location: formData.location,
+        date: formData.date,
+        time: formData.time,
+        mainCard: formData.mainCard.split(',').map(bout => bout.trim()).filter(Boolean),
+        position: { 
+          lat: parseFloat(formData.lat) || 0, 
+          lng: parseFloat(formData.lng) || 0 
+        },
+        status: 'upcoming',
+        createdAt: serverTimestamp()
+      });
+      setIsFormOpen(false);
+      setFormData({
+        event: '',
+        location: '',
+        date: '',
+        time: '',
+        mainCard: '',
+        lat: '36.1699',
+        lng: '-115.1398'
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'schedules');
+    }
   };
 
   const handleFightClick = (fight: Fight) => {
@@ -97,51 +151,112 @@ export function SchedulesPage() {
 
   return (
     <div className="p-4 md:p-8 space-y-8 min-h-full bg-[#0a0a0a]">
-      <header className="mb-8 border-b border-[#222] pb-4">
-        <h1 className="text-3xl font-display uppercase text-white tracking-tighter italic mb-1">Fight Schedules</h1>
-        <p className="text-zinc-600 uppercase tracking-[0.2em] text-[10px] font-black italic">Upcoming Pro & Semi-Pro Events</p>
+      <header className="mb-8 border-b border-[#222] pb-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-display uppercase text-white tracking-tighter italic mb-1">Fight Schedules</h1>
+          <p className="text-zinc-600 uppercase tracking-[0.2em] text-[10px] font-black italic">Upcoming Pro & Semi-Pro Events</p>
+        </div>
+        <div className="flex items-center gap-4">
+           <div className="flex items-center gap-2 bg-zinc-950 px-3 py-1.5 border border-white/5 rounded-lg">
+              <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Real-time Data Active</span>
+           </div>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-4">
-          {fights.map((fight) => (
-            <div 
+          <AnimatePresence mode="popLayout">
+          {isLoading ? (
+            <div className="p-12 flex flex-col items-center justify-center gap-4 text-zinc-600">
+               <Clock className="w-6 h-6 animate-spin" />
+               <span className="text-[10px] font-black uppercase tracking-widest">Hydrating Schedule Matrix...</span>
+            </div>
+          ) : fights.map((fight) => (
+            <motion.div 
+              layout
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
               key={fight.id} 
               onClick={() => handleFightClick(fight)}
-              className={`bg-zinc-900 border transition-all duration-300 rounded-lg overflow-hidden cursor-pointer group ${
+              className={`bg-zinc-900 border transition-all duration-300 rounded-lg overflow-hidden cursor-pointer group relative ${
                 selectedFight?.id === fight.id ? 'border-[#E31837] ring-1 ring-[#E31837]/30' : 'border-zinc-800 hover:border-zinc-700'
-              }`}
+              } ${fight.status === 'live' ? 'shadow-[0_0_30px_rgba(227,24,55,0.15)]' : ''}`}
             >
-              <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center gap-2 text-[#E31837] font-mono text-[10px] font-black tracking-widest uppercase">
-                    <Calendar className="w-3 h-3" /> {fight.date} • {fight.time}
+              {fight.status === 'live' && (
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#E31837] to-transparent animate-shimmer"></div>
+              )}
+
+              <div className="p-6 flex flex-col md:flex-row md:items-start justify-between gap-6">
+                <div className="flex-1 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-[#E31837] font-mono text-[10px] font-black tracking-widest uppercase">
+                      <Calendar className="w-3 h-3" /> {fight.date} • {fight.time}
+                    </div>
+                    {fight.status === 'live' && (
+                      <div className="flex items-center gap-1.5 bg-[#E31837] text-white px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter italic animate-pulse">
+                         <Activity className="w-2.5 h-2.5" /> Live Now
+                      </div>
+                    )}
+                    {fight.status === 'finished' && (
+                      <div className="flex items-center gap-1.5 bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter italic">
+                         <Trophy className="w-2.5 h-2.5" /> Events Concluded
+                      </div>
+                    )}
                   </div>
+
                   <h2 className={`text-xl font-display uppercase tracking-tight transition-colors ${
                     selectedFight?.id === fight.id ? 'text-[#E31837]' : 'text-white'
                   }`}>{fight.event}</h2>
+                  
                   <div className="flex items-center gap-1 text-zinc-500 text-[10px] font-bold uppercase italic">
                     <MapPin className="w-3 h-3" /> {fight.location}
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-2 shrink-0">
-                  <div className="text-[10px] text-zinc-600 uppercase font-black tracking-tighter mb-1 italic">Featured Bouts</div>
-                  {fight.mainCard.map((bout, idx) => (
-                    <div key={idx} className="text-[10px] text-zinc-300 font-bold uppercase px-3 py-1 bg-black/40 rounded border border-zinc-800">
-                      {bout}
+                {/* Score/Bout Section */}
+                <div className="flex flex-col gap-2 min-w-[240px]">
+                  {fight.status === 'live' && fight.liveScores ? (
+                    <div className="space-y-2">
+                       <div className="text-[9px] text-[#E31837] uppercase font-black tracking-widest mb-1 italic flex items-center gap-2">
+                          <Zap className="w-3 h-3" /> Live Scoring
+                       </div>
+                       {fight.liveScores.map((score, idx) => (
+                         <div key={idx} className="bg-black/60 border border-[#E31837]/30 p-2.5 rounded-lg flex flex-col gap-1">
+                            <div className="flex justify-between items-center text-[10px] font-black text-white italic uppercase tracking-tight">
+                               <span>{score.bout}</span>
+                               <span className="text-[#E31837]">{score.status}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
+                               <span>{score.round}</span>
+                               <span className="text-zinc-500">{score.score}</span>
+                            </div>
+                         </div>
+                       ))}
                     </div>
-                  ))}
+                  ) : (
+                    <>
+                      <div className="text-[10px] text-zinc-600 uppercase font-black tracking-tighter mb-1 italic">Featured Bouts</div>
+                      <div className="flex flex-wrap gap-2">
+                        {fight.mainCard.map((bout, idx) => (
+                          <div key={idx} className="text-[10px] text-zinc-300 font-bold uppercase px-3 py-1 bg-black/40 rounded border border-zinc-800">
+                            {bout}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
 
-                <div className="flex items-center gap-4 border-t md:border-t-0 md:border-l border-[#222] pt-4 md:pt-0 md:pl-6 shrink-0">
-                  <button className="bg-white text-black px-6 py-2 text-[10px] font-black uppercase tracking-widest rounded hover:bg-zinc-200 transition flex items-center gap-2">
-                    <Ticket className="w-4 h-4" /> Tickets
+                <div className="flex items-center gap-4 border-t md:border-t-0 md:border-l border-[#222] pt-4 md:pt-0 md:pl-6 shrink-0 h-full self-center">
+                  <button className="bg-white text-black px-6 py-2 text-[10px] font-black uppercase tracking-widest rounded hover:bg-zinc-200 transition flex items-center gap-2 whitespace-nowrap shadow-xl">
+                    <Ticket className="w-4 h-4" /> {fight.status === 'finished' ? 'Results' : 'Tickets'}
                   </button>
                 </div>
               </div>
-            </div>
+            </motion.div>
           ))}
+          </AnimatePresence>
 
           <div className="p-6 bg-zinc-900/50 border border-zinc-800 rounded-lg text-center mt-8">
             <h3 className="text-[10px] font-black uppercase text-white mb-2 italic tracking-[0.2em]">Are you a promoter?</h3>
@@ -169,7 +284,7 @@ export function SchedulesPage() {
                 <Marker
                   key={fight.id}
                   position={fight.position}
-                  onClick={() => setSelectedFight(fight)}
+                  onClick={() => handleFightClick(fight)}
                 />
               ))}
 
@@ -181,6 +296,11 @@ export function SchedulesPage() {
                   <div className="p-2 min-w-[200px] text-black">
                     <h3 className="font-bold uppercase text-sm mb-1">{selectedFight.event}</h3>
                     <p className="text-[10px] text-zinc-600 mb-2">{selectedFight.location}</p>
+                    <div className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-sm inline-block ${
+                      selectedFight.status === 'live' ? 'bg-[#E31837] text-white' : 'bg-zinc-200 text-zinc-800'
+                    }`}>
+                       {selectedFight.status}
+                    </div>
                   </div>
                 </InfoWindow>
               )}
@@ -203,6 +323,7 @@ export function SchedulesPage() {
           </div>
         </div>
       </div>
+
       {/* Registration Modal */}
       <AnimatePresence>
         {isFormOpen && (

@@ -219,6 +219,12 @@ export function CareerPage() {
                               placeholder="Twitter @handle"
                               className="w-full bg-black border border-white/5 rounded-xl px-4 py-3 text-[11px] text-white focus:border-[#E31837] outline-none transition-all"
                             />
+                            <input 
+                              value={formData.socialLinks.youtube}
+                              onChange={e => setFormData({...formData, socialLinks: {...formData.socialLinks, youtube: e.target.value}})}
+                              placeholder="YouTube Channel ID"
+                              className="w-full bg-black border border-white/5 rounded-xl px-4 py-3 text-[11px] text-white focus:border-[#E31837] outline-none transition-all"
+                            />
                          </div>
                       </div>
                    </div>
@@ -300,6 +306,18 @@ export function CareerPage() {
                           <a href={`https://instagram.com/${formData.socialLinks.instagram}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-white hover:text-[#E31837] transition-colors">
                             <Camera className="w-4 h-4" />
                             <span className="text-xs font-bold font-mono">@{formData.socialLinks.instagram}</span>
+                          </a>
+                        )}
+                        {formData.socialLinks.twitter && (
+                          <a href={`https://twitter.com/${formData.socialLinks.twitter}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-white hover:text-[#E31837] transition-colors">
+                            <Zap className="w-4 h-4" />
+                            <span className="text-xs font-bold font-mono">@{formData.socialLinks.twitter}</span>
+                          </a>
+                        )}
+                        {formData.socialLinks.youtube && (
+                          <a href={`https://youtube.com/${formData.socialLinks.youtube}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-white hover:text-[#E31837] transition-colors">
+                            <Video className="w-4 h-4" />
+                            <span className="text-xs font-bold font-mono">YouTube</span>
                           </a>
                         )}
                         <div className="flex items-center gap-3 text-zinc-600">

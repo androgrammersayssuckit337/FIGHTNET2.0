@@ -86,6 +86,56 @@
         "createdAt": { "type": "number" }
       },
       "required": ["senderId", "content", "createdAt"]
+    },
+    "FightSchedule": {
+      "title": "Fight Schedule",
+      "description": "Details of upcoming and live fighting events.",
+      "type": "object",
+      "properties": {
+        "event": { "type": "string" },
+        "location": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "mainCard": { "type": "array", "items": { "type": "string" } },
+        "position": { 
+          "type": "object", 
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        },
+        "status": { "type": "string", "enum": ["upcoming", "live", "finished"] },
+        "liveScores": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "bout": { "type": "string" },
+              "score": { "type": "string" },
+              "round": { "type": "string" },
+              "status": { "type": "string" }
+            }
+          }
+        },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["event", "location", "date", "time", "status", "createdAt"]
+    },
+    "Product": {
+      "title": "Store Product",
+      "description": "A product for sale in the marketplace.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "stock": { "type": "number" },
+        "imageUrl": { "type": "string" },
+        "tag": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["ownerId", "name", "price", "stock", "createdAt"]
     }
   },
   "firestore": {
@@ -112,6 +162,14 @@
     "/chatRooms/{roomId}/messages/{messageId}": {
       "schema": { "$ref": "#/entities/ChatMessage" },
       "description": "Individual chat messages"
+    },
+    "/schedules/{fightId}": {
+      "schema": { "$ref": "#/entities/FightSchedule" },
+      "description": "Fight event schedules and live updates"
+    },
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Marketplace products"
     }
   }
 }
