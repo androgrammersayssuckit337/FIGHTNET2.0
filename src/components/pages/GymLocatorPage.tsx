@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Navigation, Info, MapPin } from 'lucide-react';
 import { Map, Marker, InfoWindow, useMap } from '@vis.gl/react-google-maps';
 

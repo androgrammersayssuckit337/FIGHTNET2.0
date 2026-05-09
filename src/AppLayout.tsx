@@ -11,6 +11,7 @@ import { GymLocatorPage } from './components/pages/GymLocatorPage';
 import { StorePage } from './components/pages/StorePage';
 import { CareerPage } from './components/pages/CareerPage';
 import { SchedulesPage } from './components/pages/SchedulesPage';
+import { SettingsPage } from './components/pages/SettingsPage';
 import { APIProvider } from '@vis.gl/react-google-maps';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -29,6 +30,7 @@ export function AppLayout() {
     { label: 'Gym Locator', path: '/app/gyms' },
     { label: 'Schedules', path: '/app/schedules' },
     { label: 'FightNet Shop', path: '/app/store' },
+    { label: 'Network Settings', path: '/app/settings' },
   ];
   
   const fighterTools = [
@@ -41,8 +43,8 @@ export function AppLayout() {
       {/* Sidebar */}
       <aside className="w-full md:w-64 flex flex-col border-b md:border-b-0 md:border-r border-[#222] bg-[#0a0a0a] z-40 order-2 md:order-1 shrink-0 pb-safe md:pb-0">
         <div className="hidden md:block p-6 border-b border-[#222]">
-          <Logo size="md" className="mb-1" />
-          <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-600 font-bold font-display italic">The Combat Network</p>
+          <Logo size="lg" className="mb-2" />
+          <p className="text-xs uppercase tracking-[0.2em] text-zinc-600 font-bold font-display italic">The Combat Network</p>
         </div>
         
         <nav className="flex-1 py-4 space-y-1 overflow-y-auto hidden md:block">
@@ -92,12 +94,12 @@ export function AppLayout() {
         </div>
 
         <div className="hidden md:block">
-          {userProfile?.role === 'fighter' && (
+          {userProfile?.role === 'fighter' && !userProfile.isPro && (
             <div className="p-4 bg-zinc-900 m-4 rounded border border-zinc-800">
               <p className="text-[11px] text-zinc-400 mb-2 uppercase tracking-wide">Pro Access</p>
               <p className="text-lg font-bold leading-none mb-1">$9.99/mo</p>
               <p className="text-[10px] text-zinc-500 mb-3">Unlock Agents & Scouting</p>
-              <button className="w-full py-2 bg-[#E31837] text-white text-[11px] font-black uppercase tracking-tighter rounded hover:bg-red-700 transition">Go Pro Now</button>
+              <Link to="/app/settings" className="block w-full py-2 bg-[#E31837] text-white text-[11px] font-black underline-none text-center uppercase tracking-tighter rounded hover:bg-red-700 transition">Go Pro Now</Link>
             </div>
           )}
           
@@ -119,7 +121,7 @@ export function AppLayout() {
         <header className="h-16 border-b border-[#222] flex items-center justify-between px-4 md:px-8 shrink-0 bg-[#0a0a0a]">
           <div className="flex items-center space-x-6">
             <div className="md:hidden">
-              <Logo size="sm" />
+              <Logo size="md" />
             </div>
             <div className="hidden md:block text-zinc-600 text-[10px] font-display uppercase tracking-[0.2em]">
               <span className="text-[#E31837] animate-pulse">●</span> Live Stream: <span className="text-white italic">amateur_circuit_04</span>
@@ -131,9 +133,6 @@ export function AppLayout() {
                 Complete Profile
               </Link>
             )}
-            <Link to="/app" className="px-4 py-1.5 bg-white text-black text-xs font-bold uppercase rounded flex items-center hover:bg-zinc-200 transition">
-              <span className="mr-2">+</span> Post Tape
-            </Link>
              <button onClick={logout} className="md:hidden text-zinc-500 hover:text-white"><LogOut className="w-5 h-5"/></button>
           </div>
         </header>
@@ -147,6 +146,7 @@ export function AppLayout() {
             <Route path="/schedules" element={<SchedulesPage />} />
             <Route path="/store" element={<StorePage />} />
             <Route path="/career" element={<CareerPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/app" />} />
           </Routes>
         </div>

@@ -8,10 +8,22 @@
         "displayName": { "type": "string" },
         "role": { "type": "string", "enum": ["fighter", "fan", "sponsor"] },
         "profileImageUrl": { "type": "string" },
+        "coverImageUrl": { "type": "string" },
         "bio": { "type": "string" },
         "record": { "type": "string" },
         "gym": { "type": "string" },
+        "weightClass": { "type": "string" },
+        "hometown": { "type": "string" },
+        "socialLinks": {
+          "type": "object",
+          "properties": {
+            "instagram": { "type": "string" },
+            "twitter": { "type": "string" },
+            "youtube": { "type": "string" }
+          }
+        },
         "isPro": { "type": "boolean" },
+        "theme": { "type": "string", "enum": ["dark", "light", "cyberpunk"] },
         "createdAt": { "type": "number", "description": "Timestamp" }
       },
       "required": ["displayName", "role", "createdAt"]

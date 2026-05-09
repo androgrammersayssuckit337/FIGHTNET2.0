@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { 
   User, 
   onAuthStateChanged, 
@@ -18,10 +18,19 @@ interface UserProfile {
   email: string;
   role: 'fighter' | 'fan' | 'sponsor';
   profileImageUrl: string;
+  coverImageUrl?: string;
   bio: string;
   record: string;
   gym: string;
+  weightClass?: string;
+  hometown?: string;
+  socialLinks?: {
+    instagram?: string;
+    twitter?: string;
+    youtube?: string;
+  };
   isPro: boolean;
+  theme?: 'dark' | 'light' | 'cyberpunk';
   createdAt: number;
 }
 
@@ -106,10 +115,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         displayName: customName || user.displayName || 'Anonymous Fighter',
         role: role,
         profileImageUrl: user.photoURL || '',
+        coverImageUrl: '',
         bio: '',
         record: '',
         gym: '',
+        weightClass: '',
+        hometown: '',
+        socialLinks: {
+          instagram: '',
+          twitter: '',
+          youtube: ''
+        },
         isPro: false,
+        theme: 'dark',
         createdAt: serverTimestamp(),
       };
       
@@ -152,7 +170,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await ensureProfile(result.user, role);
     } catch (error: unknown) {
       if (error instanceof Error && (error as unknown as { code: string }).code === 'auth/popup-closed-by-user') {
-        throw new Error('LOGIN_CANCELLED', { cause: error });
+        const err = new Error('LOGIN_CANCELLED') as Error & { cause: unknown };
+        err.cause = error;
+        throw err;
       }
       console.error("Login failed:", error);
       throw error;

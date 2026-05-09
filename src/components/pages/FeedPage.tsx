@@ -116,7 +116,7 @@ export function FeedPage() {
   }, [currentUser]);
 
   const handleFileUpload = async (file: File) => {
-    if (!currentUser) return;
+    if (!currentUser) throw new Error('Not authenticated');
     setIsSubmitting(true);
     
     const fileExt = file.name.split('.').pop();
@@ -286,6 +286,8 @@ export function FeedPage() {
     }
   };
 
+  const [isShareOpen, setIsShareOpen] = useState<string | null>(null);
+
   const handleShare = async (post: Post) => {
     const shareData = {
       title: 'FightNet',
@@ -293,17 +295,23 @@ export function FeedPage() {
       url: `${window.location.origin}/app?post=${post.id}`,
     };
 
-    try {
-      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
         await navigator.share(shareData);
-      } else {
-        await navigator.clipboard.writeText(shareData.url);
-        alert('Link copied to clipboard!');
+      } catch (error) {
+        if ((error as Error).name !== 'AbortError') console.error('Share failed:', error);
       }
-    } catch (error) {
-      if ((error as Error).name !== 'AbortError') {
-        console.error('Share failed:', error);
-      }
+    } else {
+      setIsShareOpen(post.id);
+    }
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('TRANSMISSION COPIED TO CLIPBOARD');
+    } catch (err) {
+      console.error('Failed to copy!', err);
     }
   };
 
@@ -516,25 +524,51 @@ export function FeedPage() {
                   </div>
                )}
 
-              <div className="mt-6 flex items-center gap-8 border-t border-white/5 pt-6">
+              <div className="mt-6 flex items-center gap-8 border-t border-white/5 pt-6 relative">
                  <button 
                   onClick={() => handleLike(post.id)}
-                  className="flex items-center gap-2.5 text-zinc-500 hover:text-[#E31837] transition-all group/stat"
+                  className="flex items-center gap-2.5 text-zinc-500 hover:text-[#E31837] transition-all group/stat relative px-2 py-1 rounded hover:bg-[#E31837]/5"
                  >
                    <Heart className={`w-5 h-5 ${post.likesCount > 0 ? 'fill-[#E31837] text-[#E31837]' : ''} group-hover/stat:scale-110 transition-transform`} />
-                   <span className="text-xs font-black tracking-tighter">{post.likesCount || ''} {post.likesCount === 1 ? 'Like' : 'Likes'}</span>
+                   <span className="text-xs font-black tracking-tighter uppercase">{post.likesCount || ''} ENFORCEMENTS</span>
                  </button>
-                 <button className="flex items-center gap-2.5 text-zinc-500 hover:text-white transition-all group/stat">
+                 <button className="flex items-center gap-2.5 text-zinc-500 hover:text-white transition-all group/stat px-2 py-1 rounded hover:bg-white/5">
                    <MessageSquare className="w-5 h-5 group-hover/stat:scale-110 transition-transform" />
-                   <span className="text-xs font-black tracking-tighter">Comment</span>
+                   <span className="text-xs font-black tracking-tighter uppercase">COMMENTS</span>
                  </button>
-                 <button 
-                   onClick={() => handleShare(post)}
-                   className="flex items-center gap-2.5 text-zinc-500 hover:text-white transition-all group/stat"
-                 >
-                   <Share2 className="w-5 h-5 group-hover/stat:scale-110 transition-transform" />
-                   <span className="text-xs font-black tracking-tighter uppercase tracking-widest text-[10px] ml-1">Share</span>
-                 </button>
+                 <div className="relative">
+                    <button 
+                      onClick={() => handleShare(post)}
+                      className="flex items-center gap-2.5 text-zinc-500 hover:text-[#E31837] transition-all group/stat px-4 py-2 bg-zinc-900/50 border border-white/5 rounded-lg active:scale-95"
+                    >
+                      <Share2 className="w-4 h-4 group-hover/stat:rotate-12 transition-transform" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">TRANSMIT</span>
+                    </button>
+                    
+                    {isShareOpen === post.id && (
+                      <div className="absolute bottom-full mb-4 right-0 w-64 bg-zinc-900 border border-white/10 p-4 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 animate-in fade-in zoom-in-95 duration-200">
+                         <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
+                           <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Secure Share</span>
+                           <button onClick={() => setIsShareOpen(null)} className="text-zinc-600 hover:text-white"><Share2 className="w-3 h-3 rotate-45" /></button>
+                         </div>
+                         <div className="space-y-3">
+                           <button 
+                             onClick={() => { copyToClipboard(`${window.location.origin}/app?post=${post.id}`); setIsShareOpen(null); }}
+                             className="w-full py-2.5 bg-black hover:bg-zinc-800 border border-white/5 rounded-xl text-[10px] font-black uppercase text-white transition-all"
+                           >
+                             Copy Secure Link
+                           </button>
+                           <a 
+                             href={`https://twitter.com/intent/tweet?text=Check out this fight highlight on FightNet!&url=${encodeURIComponent(`${window.location.origin}/app?post=${post.id}`)}`}
+                             target="_blank" rel="noopener noreferrer"
+                             className="block w-full py-2.5 bg-[#1DA1F2] hover:bg-blue-600 rounded-xl text-[10px] font-black uppercase text-white transition-all text-center"
+                           >
+                             Post to X
+                           </a>
+                         </div>
+                      </div>
+                    )}
+                 </div>
               </div>
             </div>
           ))}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Video, Loader2 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
@@ -20,32 +20,28 @@ export function PromoGenerator({ isOpen, onClose, fighterName }: PromoGeneratorP
     try {
       setIsGenerating(true);
       setError(null);
-      setVideoUri(null);
       setVideoBlobUrl(null);
       setProgressStatus('Checking access...');
 
       // Follow the AI Studio window pattern for API key
-      const win = window as unknown as { handleAIVideoRequest?: (param: string) => Promise<string> };
-      if (win.aistudio && win.aistudio.hasSelectedApiKey) {
+      const win = window as Window & { 
+        aistudio?: { 
+          hasSelectedApiKey?: () => Promise<boolean>;
+          openSelectKey?: () => Promise<void>;
+        } 
+      };
+      if (win.aistudio && win.aistudio.hasSelectedApiKey && win.aistudio.openSelectKey) {
         if (!(await win.aistudio.hasSelectedApiKey())) {
           await win.aistudio.openSelectKey();
         }
       } else {
         // Fallback for missing api key dialog in dev
-        console.warn("window.aistudio not available, relying on process.env.API_KEY");
+        console.warn("window.aistudio not available, relying on environment secrets");
       }
 
-      // The key is injected to process.env.API_KEY or we can just pass empty config and let SDK pick it up
-      // In the preview environment, the SDK might just use process.env.API_KEY behind the scenes 
-      // or we have to pass process.env.API_KEY manually. Oh, wait, the instructions say:
-      // "The selected API key is available using process.env.API_KEY. It is injected automatically, so you do not need to modify the API key code."
-      // BUT, for Vite, process.env doesn't work directly on client unless we use `process.env` from Vite or `import.meta.env`. 
-      // Wait, "The selected API key is available using process.env.API_KEY. It is injected automatically, so you do not need to modify the API key code."
-      // In standard Vite, it's import.meta.env, but AI Studio polyfills process.env.API_KEY for this specific use case.
-      
-      const apiKey = process.env.API_KEY;
+      const apiKey = import.meta.env.GEMINI_API_KEY;
       if (!apiKey) {
-         throw new Error("Missing API Key. Please configure your Gemini API Key.");
+         throw new Error("Missing GEMINI_API_KEY. Please configure your Gemini API Key in the Secrets panel.");
       }
 
       const ai = new GoogleGenAI({ apiKey });

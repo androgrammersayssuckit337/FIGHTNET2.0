@@ -21,10 +21,21 @@ service cloud.firestore {
              data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
              data.role in ['fighter', 'fan', 'sponsor'] &&
              (data.get('profileImageUrl', '') is string && data.get('profileImageUrl', '').size() <= 2048) &&
-             (data.get('bio', '') is string && data.get('bio', '').size() <= 2000) &&
+             (data.get('coverImageUrl', '') is string && data.get('coverImageUrl', '').size() <= 2048) &&
+             (data.get('bio', '') is string && data.get('bio', '').size() <= 4000) &&
              (data.get('record', '') is string && data.get('record', '').size() <= 50) &&
              (data.get('gym', '') is string && data.get('gym', '').size() <= 200) &&
+             (data.get('weightClass', '') is string && data.get('weightClass', '').size() <= 100) &&
+             (data.get('hometown', '') is string && data.get('hometown', '').size() <= 100) &&
+             (data.get('theme', 'dark') in ['dark', 'light', 'cyberpunk']) &&
              (data.get('isPro', false) is bool);
+    }
+    // Validation for nested socialLinks (Map)
+    function isValidSocialLinks(links) {
+      return links is map &&
+             (links.get('instagram', '') is string && links.get('instagram', '').size() <= 100) &&
+             (links.get('twitter', '') is string && links.get('twitter', '').size() <= 100) &&
+             (links.get('youtube', '') is string && links.get('youtube', '').size() <= 100);
     }
 
     // Validation Blueprint for UserPrivate
@@ -64,10 +75,14 @@ service cloud.firestore {
       allow get: if isSignedIn() && isValidId(userId);
       allow list: if isSignedIn();
       
-      allow create: if isOwner(userId) && isValidId(userId) && isValidUserPublic(incoming());
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserPublic(incoming()) && (
+        !incoming().keys().hasAll(['socialLinks']) || isValidSocialLinks(incoming().socialLinks)
+      );
       
       allow update: if isOwner(userId) && isValidUserPublic(incoming()) && (
-        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'profileImageUrl', 'bio', 'record', 'gym', 'isPro'])
+        !incoming().keys().hasAll(['socialLinks']) || isValidSocialLinks(incoming().socialLinks)
+      ) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'profileImageUrl', 'coverImageUrl', 'bio', 'record', 'gym', 'weightClass', 'hometown', 'socialLinks', 'isPro', 'theme'])
       );
 
       match /private/info {

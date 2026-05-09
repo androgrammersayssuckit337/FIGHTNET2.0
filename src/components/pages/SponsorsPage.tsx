@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Star, Zap, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { db, auth } from '../../firebase';
@@ -29,7 +29,7 @@ const MOCK_SPONSORS = [
 ];
 
 export function SponsorsPage() {
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
   const [applyingTo, setApplyingTo] = useState<string | null>(null);
   const [pitch, setPitch] = useState('');
   const [applications, setApplications] = useState<Sponsorship[]>([]);
@@ -58,7 +58,14 @@ export function SponsorsPage() {
   }, [currentUser]);
 
   const handleApply = async (sponsorId: string) => {
-    if (!currentUser || !pitch.trim()) return;
+    if (!currentUser) return;
+    
+    if (!userProfile?.isPro && applications.length >= 1) {
+      alert("PRO STATUS REQUIRED: You have reached the limit of active sponsorship proposals for standard accounts. Upgrade to PRO to apply to unlimited brands.");
+      return;
+    }
+
+    if (!pitch.trim()) return;
     
     try {
       await addDoc(collection(db, 'sponsorships'), {
