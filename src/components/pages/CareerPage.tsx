@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Target, Award, Zap, Edit2, Save, X, Camera, Video, Shield, Loader2, ArrowLeft } from 'lucide-react';
+import { Target, Award, Zap, Edit2, Save, X, Camera, Video, Shield, Loader2, ArrowLeft, Instagram, Twitter, Youtube } from 'lucide-react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { db, auth, storage } from '../../firebase';
@@ -300,24 +300,33 @@ export function CareerPage() {
                       <div className="space-y-4 pt-4 border-t border-white/5">
                          <label className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.2em]">Social Presence</label>
                          <div className="space-y-3">
-                            <input 
-                              value={formData.socialLinks.instagram}
-                              onChange={e => setFormData({...formData, socialLinks: {...formData.socialLinks, instagram: e.target.value}})}
-                              placeholder="Instagram @handle"
-                              className="w-full bg-black border border-white/5 rounded-xl px-4 py-3 text-[11px] text-white focus:border-[#E31837] outline-none transition-all"
-                            />
-                            <input 
-                              value={formData.socialLinks.twitter}
-                              onChange={e => setFormData({...formData, socialLinks: {...formData.socialLinks, twitter: e.target.value}})}
-                              placeholder="Twitter @handle"
-                              className="w-full bg-black border border-white/5 rounded-xl px-4 py-3 text-[11px] text-white focus:border-[#E31837] outline-none transition-all"
-                            />
-                            <input 
-                              value={formData.socialLinks.youtube}
-                              onChange={e => setFormData({...formData, socialLinks: {...formData.socialLinks, youtube: e.target.value}})}
-                              placeholder="YouTube Channel ID"
-                              className="w-full bg-black border border-white/5 rounded-xl px-4 py-3 text-[11px] text-white focus:border-[#E31837] outline-none transition-all"
-                            />
+                            <div className="relative">
+                               <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                               <input 
+                                 value={formData.socialLinks.instagram}
+                                 onChange={e => setFormData({...formData, socialLinks: {...formData.socialLinks, instagram: e.target.value}})}
+                                 placeholder="Instagram @handle"
+                                 className="w-full bg-black border border-white/5 rounded-xl pl-10 pr-4 py-3 text-[11px] text-white focus:border-[#E31837] outline-none transition-all"
+                               />
+                            </div>
+                            <div className="relative">
+                               <Twitter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                               <input 
+                                 value={formData.socialLinks.twitter}
+                                 onChange={e => setFormData({...formData, socialLinks: {...formData.socialLinks, twitter: e.target.value}})}
+                                 placeholder="Twitter @handle"
+                                 className="w-full bg-black border border-white/5 rounded-xl pl-10 pr-4 py-3 text-[11px] text-white focus:border-[#E31837] outline-none transition-all"
+                               />
+                            </div>
+                            <div className="relative">
+                               <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                               <input 
+                                 value={formData.socialLinks.youtube}
+                                 onChange={e => setFormData({...formData, socialLinks: {...formData.socialLinks, youtube: e.target.value}})}
+                                 placeholder="YouTube Channel ID"
+                                 className="w-full bg-black border border-white/5 rounded-xl pl-10 pr-4 py-3 text-[11px] text-white focus:border-[#E31837] outline-none transition-all"
+                               />
+                            </div>
                          </div>
                       </div>
                    </div>
@@ -397,19 +406,19 @@ export function CareerPage() {
                      <div className="space-y-4">
                         {formData.socialLinks.instagram && (
                           <a href={`https://instagram.com/${formData.socialLinks.instagram}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-white hover:text-[#E31837] transition-colors">
-                            <Camera className="w-4 h-4" />
+                            <Instagram className="w-4 h-4 text-[#E31837]" />
                             <span className="text-xs font-bold font-mono">@{formData.socialLinks.instagram}</span>
                           </a>
                         )}
                         {formData.socialLinks.twitter && (
                           <a href={`https://twitter.com/${formData.socialLinks.twitter}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-white hover:text-[#E31837] transition-colors">
-                            <Zap className="w-4 h-4" />
+                            <Twitter className="w-4 h-4 text-[#E31837]" />
                             <span className="text-xs font-bold font-mono">@{formData.socialLinks.twitter}</span>
                           </a>
                         )}
                         {formData.socialLinks.youtube && (
                           <a href={`https://youtube.com/${formData.socialLinks.youtube}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-white hover:text-[#E31837] transition-colors">
-                            <Video className="w-4 h-4" />
+                            <Youtube className="w-4 h-4 text-[#E31837]" />
                             <span className="text-xs font-bold font-mono">YouTube</span>
                           </a>
                         )}
