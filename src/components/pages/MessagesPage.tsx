@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Edit, Send, ShieldAlert, Paperclip, X } from 'lucide-react';
+import { Search, Edit, Send, ShieldAlert, Paperclip, X, FileVideo, FileImage, ShieldCheck, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { db, auth, storage } from '../../firebase';
 import { 
@@ -51,6 +51,7 @@ export function MessagesPage() {
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -203,6 +204,16 @@ export function MessagesPage() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      setFileError(null);
+
+      // 50MB Limit
+      const MAX_SIZE = 50 * 1024 * 1024;
+      if (file.size > MAX_SIZE) {
+        setFileError('Payload exceeds 50MB security threshold');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
       setSelectedFile(file);
       
       const fileReader = new FileReader();
@@ -218,6 +229,7 @@ export function MessagesPage() {
   const removeFile = () => {
     setSelectedFile(null);
     setPreviewUrl(null);
+    setFileError(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -261,7 +273,7 @@ export function MessagesPage() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!newMessage.trim() && !selectedFile) || !selectedRoomId || !currentUser || isSubmitting) return;
+    if ((!newMessage.trim() && !selectedFile) || !selectedRoomId || !currentUser || isSubmitting || fileError) return;
 
     setIsSubmitting(true);
     const content = newMessage.trim();
@@ -485,23 +497,57 @@ export function MessagesPage() {
 
             {/* Message Input */}
             <form onSubmit={handleSendMessage} className="p-4 border-t border-[#222] bg-[#0a0a0a]">
-              {previewUrl && (
-                 <div className="mb-4 relative max-w-xs rounded-xl border border-white/10 overflow-hidden">
-                   {selectedFile?.type.startsWith('video') ? (
-                     <video src={previewUrl} className="w-full" controls playsInline muted preload="metadata" />
-                   ) : (
-                     <img src={previewUrl} alt="Preview" className="w-full object-cover" />
-                   )}
-                   <button 
-                     type="button" 
-                     onClick={removeFile}
-                     className="absolute top-2 right-2 bg-black/80 rounded-full p-1 border border-white/10 text-white hover:text-[#E31837] hover:bg-black transition-all"
-                   >
-                     <X className="w-4 h-4"/>
-                   </button>
+              {fileError && (
+                <div className="mb-4 flex items-center gap-3 p-3 bg-red-950/20 border border-red-900/30 rounded-xl animate-in fade-in slide-in-from-bottom-2">
+                  <AlertCircle className="w-4 h-4 text-red-500" />
+                  <p className="text-[10px] font-black uppercase tracking-widest text-red-400">{fileError}</p>
+                  <button type="button" onClick={removeFile} className="ml-auto text-red-400 hover:text-red-300">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {previewUrl && !fileError && (
+                 <div className="mb-4 relative max-w-sm rounded-2xl border border-white/5 bg-[#050505] overflow-hidden animate-in zoom-in-95 duration-200">
+                   <div className="relative group">
+                     {selectedFile?.type.startsWith('video') ? (
+                       <div className="aspect-video bg-black flex items-center justify-center">
+                         <video src={previewUrl} className="max-h-48 w-full" controls playsInline muted preload="metadata" />
+                       </div>
+                     ) : (
+                       <img src={previewUrl} alt="Preview" className="w-full max-h-48 object-contain bg-black" />
+                     )}
+                     <button 
+                       type="button" 
+                       onClick={removeFile}
+                       className="absolute top-3 right-3 bg-black shadow-2xl rounded-full p-1.5 border border-white/10 text-white hover:text-[#E31837] hover:border-[#E31837]/50 transition-all z-10"
+                     >
+                       <X className="w-4 h-4"/>
+                     </button>
+                   </div>
+                   
+                   <div className="p-3 bg-[#0a0a0a] border-t border-white/5 flex items-center justify-between">
+                     <div className="flex items-center gap-2">
+                       {selectedFile?.type.startsWith('video') ? <FileVideo className="w-4 h-4 text-[#E31837]" /> : <FileImage className="w-4 h-4 text-[#E31837]" />}
+                       <div className="min-w-0">
+                         <p className="text-[10px] text-white font-black uppercase truncate tracking-tight">{selectedFile?.name}</p>
+                         <p className="text-[8px] text-zinc-600 font-bold uppercase tracking-[0.1em]">
+                           {(selectedFile!.size / (1024 * 1024)).toFixed(2)} MB / 50 MB Security Limit
+                         </p>
+                       </div>
+                     </div>
+                     <div className="flex items-center gap-1 text-[8px] font-black uppercase text-green-500 tracking-widest bg-green-500/10 px-2 py-1 rounded-full border border-green-500/20">
+                        <ShieldCheck className="w-3 h-3" />
+                        Verified
+                     </div>
+                   </div>
+
                    {uploadProgress > 0 && uploadProgress < 100 && (
-                     <div className="absolute inset-x-0 bottom-0 h-1 bg-zinc-900">
-                       <div className="h-full bg-[#E31837]" style={{ width: `${uploadProgress}%` }}></div>
+                     <div className="absolute inset-x-0 bottom-0 h-1 bg-zinc-900 overflow-hidden">
+                       <div 
+                        className="h-full bg-gradient-to-r from-[#E31837] to-[#ff4d67] shadow-[0_0_10px_#E31837] transition-all duration-300" 
+                        style={{ width: `${uploadProgress}%` }}
+                       ></div>
                      </div>
                    )}
                  </div>
@@ -525,13 +571,13 @@ export function MessagesPage() {
                   type="text" 
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Transmit message..." 
+                  placeholder={selectedFile ? "Add a caption..." : "Transmit message..."} 
                   className="w-full bg-[#050505] border border-zinc-800 p-3 pl-12 pr-12 text-sm text-white focus:outline-none focus:border-[#E31837] rounded-xl transition-all disabled:opacity-50"
                   disabled={isSubmitting}
                 />
                 <button 
                   type="submit"
-                  disabled={(!newMessage.trim() && !selectedFile) || isSubmitting}
+                  disabled={((!newMessage.trim() && !selectedFile) || isSubmitting || !!fileError)}
                   className="absolute right-2 p-2 text-[#E31837] hover:text-white disabled:text-zinc-700 transition-colors"
                 >
                    {isSubmitting ? (

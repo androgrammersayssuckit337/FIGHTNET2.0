@@ -106,26 +106,29 @@ export function GymLocatorPage() {
               <div className="w-16 h-16 bg-[#E31837]/10 rounded-full flex items-center justify-center mb-6">
                 <MapPin className="w-8 h-8 text-[#E31837]" />
               </div>
-              <h3 className="font-display text-2xl uppercase text-white mb-4 italic tracking-tighter">Maps Connectivity Offline</h3>
+              <h3 className="font-display text-2xl uppercase text-white mb-4 italic tracking-tighter">Maps Connectivity Locked</h3>
               
               <div className="max-w-md space-y-4">
                 <p className="text-zinc-400 text-xs uppercase tracking-[0.2em] font-black italic">
-                  Critical Error: ApiNotActivatedMapError
+                  Critical Error: ApiNotActivatedMapError or ApiTargetBlockedMapError
                 </p>
                 <div className="text-left bg-black/50 border border-white/5 p-6 rounded-2xl space-y-4">
                   <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-relaxed">
-                    1. Ensure "Maps JavaScript API" is enabled in your Google Cloud Console.
+                    1. Ensure <span className="text-white">"Maps JavaScript API"</span> is enabled in your Google Cloud Console.
                   </p>
                   <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-relaxed">
-                    2. Add your API key as <code className="text-[#E31837] bg-[#E31837]/10 px-1 rounded">GOOGLE_MAPS_PLATFORM_KEY</code> in Settings → Secrets.
+                    2. Check <span className="text-white">API Restrictions</span> on your key to allow "Maps JavaScript API".
+                  </p>
+                  <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-relaxed">
+                    3. Add your key as <code className="text-[#E31837] bg-[#E31837]/10 px-1 rounded">GOOGLE_MAPS_PLATFORM_KEY</code> in Settings → Secrets.
                   </p>
                   <a 
-                    href="https://console.cloud.google.com/google/maps-apis/api-list" 
+                    href="https://console.cloud.google.com/google/maps-apis/credentials" 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="block w-full py-3 bg-[#E31837] text-white text-[10px] font-black text-center uppercase tracking-widest rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-900/20"
                   >
-                    Enable API Now
+                    Configure API Key Restrictions
                   </a>
                 </div>
               </div>
